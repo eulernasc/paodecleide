@@ -208,6 +208,16 @@ function openCheckoutModal(){
     submitBtn.disabled = true;
     submitBtn.textContent = 'Enviando...';
 
+    const mensagem = montarMensagemWhatsapp(nome, itensPedido, totalValor, obs);
+    const url = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensagem)}`;
+
+    const novaJanela = window.open(url, '_blank');
+
+    state.carrinho = {};
+    closeModal();
+    renderCardapio();
+    toast('Pedido enviado! Abrindo WhatsApp...');
+
     try{
       await addDoc(collection(db, 'pedidos'), {
         cliente: nome,
@@ -216,23 +226,15 @@ function openCheckoutModal(){
         itens: itensPedido,
         total: totalValor,
         status: 'novo',
+        pago: false,
         criadoEm: serverTimestamp()
       });
-
-      const mensagem = montarMensagemWhatsapp(nome, itensPedido, totalValor, obs);
-      const url = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensagem)}`;
-
-      state.carrinho = {};
-      closeModal();
-      renderCardapio();
-      toast('Pedido enviado! Abrindo WhatsApp...');
-
-      setTimeout(() => { window.open(url, '_blank'); }, 600);
     } catch(err){
       console.error(err);
-      toast('Erro ao enviar pedido, tente novamente');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Enviar pedido pelo WhatsApp';
+    }
+
+    if (!novaJanela){
+      window.location.href = url;
     }
   });
 }
