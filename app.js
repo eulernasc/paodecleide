@@ -17,27 +17,32 @@ const { db, collection, doc, addDoc, updateDoc, deleteDoc,
 /* ====== ESTADO GLOBAL ====== */
 const state = {
   config: {
-    ingredientes: [
-      { nome: "Polvilho", qtd: 1, unidade: "kg", custoUn: 12.00 },
-      { nome: "Ovos", qtd: 8, unidade: "un", custoUn: 1.00 },
-      { nome: "Peito de Frango", qtd: 1, unidade: "kg", custoUn: 23.00 },
-      { nome: "Queijo", qtd: 0.2, unidade: "kg", custoUn: 11.50 },
-      { nome: "Gás (uso do forno)", qtd: 1, unidade: "uso", custoUn: 2.50 },
-      { nome: "Sal / Tempero", qtd: 1, unidade: "porção", custoUn: 1.00 }
+    receitas: [
+      {
+        id: "frango",
+        nome: "Pão de Queijo com Frango",
+        ingredientes: [
+          { nome: "Polvilho", qtd: 1, unidade: "kg" },
+          { nome: "Ovos", qtd: 8, unidade: "un" },
+          { nome: "Peito de Frango", qtd: 1, unidade: "kg" },
+          { nome: "Queijo", qtd: 0.2, unidade: "kg" },
+          { nome: "Gás (uso do forno)", qtd: 1, unidade: "uso" },
+          { nome: "Sal / Tempero", qtd: 1, unidade: "porção" }
+        ],
+        paesPerFornada: 30,
+        precoVenda: 6.00
+      }
     ],
-    paesPerFornada: 30,
-    precoVenda: 6.00,
-    precoPromo2: 10.00,
     metaMensal: 1000.00
   },
   producao: [],
   estoqueIngredientes: [
-    { nome: "Polvilho", qtd: 2, unidade: "kg", minimo: 0.5, consumoFornada: 1 },
-    { nome: "Ovos", qtd: 16, unidade: "un", minimo: 8, consumoFornada: 8 },
-    { nome: "Frango", qtd: 1, unidade: "kg", minimo: 0.5, consumoFornada: 1 },
-    { nome: "Queijo", qtd: 200, unidade: "g", minimo: 50, consumoFornada: 200 },
-    { nome: "Sal", qtd: 0.5, unidade: "kg", minimo: 0.1, consumoFornada: 0.05 },
-    { nome: "Gás (uso)", qtd: 10, unidade: "usos", minimo: 2, consumoFornada: 1 }
+    { nome: "Polvilho", qtd: 0, unidade: "kg", minimo: 0.5, custoUn: 0 },
+    { nome: "Ovos", qtd: 0, unidade: "un", minimo: 8, custoUn: 0 },
+    { nome: "Peito de Frango", qtd: 0, unidade: "kg", minimo: 0.5, custoUn: 0 },
+    { nome: "Queijo", qtd: 0, unidade: "kg", minimo: 0.05, custoUn: 0 },
+    { nome: "Gás (uso do forno)", qtd: 0, unidade: "uso", minimo: 2, custoUn: 0 },
+    { nome: "Sal / Tempero", qtd: 0, unidade: "porção", minimo: 0.1, custoUn: 0 }
   ],
   compras: [],
   vendas: [],
@@ -86,6 +91,9 @@ function monthLabel(key){
   return meses[parseInt(m)-1] + '/' + y;
 }
 function uid(){ return Math.random().toString(36).slice(2, 10); }
+function slugify(s){
+  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || uid();
+}
 
 /* ====== TOAST ====== */
 function toast(msg, type='default'){
@@ -152,83 +160,32 @@ function renderView(viewName){
   if (viewName === 'financeiro') renderFinanceiro();
 }
 
-/* ====== CUSTO CALCULADO ====== */
-function custoFornada(){
-  return state.config.ingredientes.reduce((sum, i) => sum + (i.qtd * i.custoUn), 0);
+/* ====== RECEITAS — HELPERS ====== */
+function getReceita(id){
+  return state.config.receitas.find(r => r.id === id) || state.config.receitas[0];
 }
-function custoPorPao(){
-  const c = custoFornada();
-  const n = state.config.paesPerFornada || 1;
+function custoFornada(receita){
+  if (!receita) return 0;
+  return receita.ingredientes.reduce((sum, i) => {
+    const estoqueItem = state.estoqueIngredientes.find(e => e.nome === i.nome);
+    const custoUn = estoqueItem ? Number(estoqueItem.custoUn)||0 : 0;
+    return sum + (i.qtd * custoUn);
+  }, 0);
+}
+function custoPorPao(receita){
+  if (!receita) return 0;
+  const c = custoFornada(receita);
+  const n = receita.paesPerFornada || 1;
   return c / n;
 }
-function lucroPorPao(){
-  return state.config.precoVenda - custoPorPao();
+function lucroPorPao(receita){
+  if (!receita) return 0;
+  return receita.precoVenda - custoPorPao(receita);
 }
 
 /* ============================================================
    FIREBASE — LISTENERS EM TEMPO REAL
    ============================================================ */
-
-function initFirebaseListeners(){
-  setSyncStatus('syncing');
-
-  // CONFIG (documento único)
-  const configRef = doc(db, 'config', 'principal');
-  onSnapshot(configRef, (snap) => {
-    if (snap.exists()){
-      const data = snap.data();
-      state.config = { ...state.config, ...data };
-    } else {
-      // primeira vez — grava o padrão
-      setDoc(configRef, state.config).catch(console.error);
-    }
-    state.configLoaded = true;
-    checkInitialLoad();
-    renderView(getCurrentView());
-  }, (err) => { console.error(err); setSyncStatus('offline'); });
-
-  // ESTOQUE INGREDIENTES (documento único com array)
-  const estoqueRef = doc(db, 'estoque', 'ingredientes');
-  onSnapshot(estoqueRef, (snap) => {
-    if (snap.exists()){
-      state.estoqueIngredientes = snap.data().itens || state.estoqueIngredientes;
-    } else {
-      setDoc(estoqueRef, { itens: state.estoqueIngredientes }).catch(console.error);
-    }
-    state.estoqueLoaded = true;
-    checkInitialLoad();
-    renderView(getCurrentView());
-  }, (err) => { console.error(err); setSyncStatus('offline'); });
-
-  // PRODUÇÃO (coleção)
-  const producaoQuery = query(collection(db, 'producao'), orderBy('data', 'desc'));
-  onSnapshot(producaoQuery, (snap) => {
-    state.producao = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    setSyncStatus('online');
-    renderView(getCurrentView());
-  }, (err) => { console.error(err); setSyncStatus('offline'); });
-
-  // VENDAS (coleção)
-  const vendasQuery = query(collection(db, 'vendas'), orderBy('data', 'desc'));
-  onSnapshot(vendasQuery, (snap) => {
-    state.vendas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderView(getCurrentView());
-  }, (err) => { console.error(err); setSyncStatus('offline'); });
-
-  // COMPRAS / REPOSIÇÃO (coleção)
-  const comprasQuery = query(collection(db, 'compras'), orderBy('data', 'desc'));
-  onSnapshot(comprasQuery, (snap) => {
-    state.compras = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderView(getCurrentView());
-  }, (err) => { console.error(err); setSyncStatus('offline'); });
-
-  // FLUXO DE CAIXA (coleção)
-  const caixaQuery = query(collection(db, 'caixa'), orderBy('data', 'desc'));
-  onSnapshot(caixaQuery, (snap) => {
-    state.caixa = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderView(getCurrentView());
-  }, (err) => { console.error(err); setSyncStatus('offline'); });
-}
 
 let initialLoadDone = false;
 function checkInitialLoad(){
@@ -244,7 +201,64 @@ function getCurrentView(){
   return active ? active.id.replace('view-', '') : 'dashboard';
 }
 
-/* ====== CRUD HELPERS ====== */
+function initFirebaseListeners(){
+  setSyncStatus('syncing');
+
+  const configRef = doc(db, 'config', 'principal');
+  onSnapshot(configRef, (snap) => {
+    if (snap.exists()){
+      const data = snap.data();
+      if (data.receitas && data.receitas.length){
+        state.config = { ...state.config, ...data };
+      } else {
+        state.config = { ...state.config, metaMensal: data.metaMensal ?? state.config.metaMensal };
+      }
+    } else {
+      setDoc(configRef, state.config).catch(console.error);
+    }
+    state.configLoaded = true;
+    checkInitialLoad();
+    renderView(getCurrentView());
+  }, (err) => { console.error(err); setSyncStatus('offline'); });
+
+  const estoqueRef = doc(db, 'estoque', 'ingredientes');
+  onSnapshot(estoqueRef, (snap) => {
+    if (snap.exists()){
+      state.estoqueIngredientes = snap.data().itens || state.estoqueIngredientes;
+    } else {
+      setDoc(estoqueRef, { itens: state.estoqueIngredientes }).catch(console.error);
+    }
+    state.estoqueLoaded = true;
+    checkInitialLoad();
+    renderView(getCurrentView());
+  }, (err) => { console.error(err); setSyncStatus('offline'); });
+
+  const producaoQuery = query(collection(db, 'producao'), orderBy('data', 'desc'));
+  onSnapshot(producaoQuery, (snap) => {
+    state.producao = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setSyncStatus('online');
+    renderView(getCurrentView());
+  }, (err) => { console.error(err); setSyncStatus('offline'); });
+
+  const vendasQuery = query(collection(db, 'vendas'), orderBy('data', 'desc'));
+  onSnapshot(vendasQuery, (snap) => {
+    state.vendas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderView(getCurrentView());
+  }, (err) => { console.error(err); setSyncStatus('offline'); });
+
+  const comprasQuery = query(collection(db, 'compras'), orderBy('data', 'desc'));
+  onSnapshot(comprasQuery, (snap) => {
+    state.compras = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderView(getCurrentView());
+  }, (err) => { console.error(err); setSyncStatus('offline'); });
+
+  const caixaQuery = query(collection(db, 'caixa'), orderBy('data', 'desc'));
+  onSnapshot(caixaQuery, (snap) => {
+    state.caixa = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderView(getCurrentView());
+  }, (err) => { console.error(err); setSyncStatus('offline'); });
+}
+
 async function salvarConfig(){
   setSyncStatus('syncing');
   try{
@@ -258,6 +272,26 @@ async function salvarEstoqueIngredientes(){
   try{
     await setDoc(doc(db, 'estoque', 'ingredientes'), { itens: state.estoqueIngredientes });
   } catch(e){ console.error(e); toast('Erro ao salvar estoque', 'error'); }
+}
+
+async function confirmarExclusao(colecao, id){
+  openModal(`
+    <h3>Confirmar exclusão</h3>
+    <p class="text-soft">Tem certeza que deseja excluir este registro? Essa ação não pode ser desfeita.</p>
+    <div class="modal-actions">
+      <button class="btn outline" id="btnCancelarDel">Cancelar</button>
+      <button class="btn danger" id="btnConfirmarDel">Excluir</button>
+    </div>
+  `);
+  $('#btnCancelarDel').addEventListener('click', closeModal);
+  $('#btnConfirmarDel').addEventListener('click', async () => {
+    setSyncStatus('syncing');
+    try{
+      await deleteDoc(doc(db, colecao, id));
+      toast('Registro excluído', 'success');
+    } catch(e){ console.error(e); toast('Erro ao excluir', 'error'); }
+    closeModal();
+  });
 }
 
 /* ============================================================
@@ -313,7 +347,7 @@ function renderDashboard(){
 
     <div class="card">
       <div class="section-title">
-        <div class="left"><span class="dot"></span>Meta do mês</div>
+        <div class="left"><span class="dot"></span><span>Meta do mês</span></div>
         <span class="text-soft text-sm">${fmtBRL(faturamentoMes)} de ${fmtBRL(state.config.metaMensal)}</span>
       </div>
       <div class="progress-bar"><div class="fill" style="width:${Math.min(100,metaPct).toFixed(0)}%"></div></div>
@@ -323,23 +357,26 @@ function renderDashboard(){
     <div class="two-col">
       <div class="card">
         <div class="section-title">
-          <div class="left"><span class="dot"></span>Últimas vendas</div>
+          <div class="left"><span class="dot"></span><span>Últimas vendas</span></div>
           <button class="btn sm" id="btnNovaVendaDash">+ Nova venda</button>
         </div>
         ${ultimasVendas.length ? `
           <div class="table-wrap">
             <table class="data">
-              <thead><tr><th>Data</th><th>Cliente</th><th>Qtd</th><th>Total</th><th>Lucro</th></tr></thead>
+              <thead><tr><th>Data</th><th>Receita</th><th>Cliente</th><th>Qtd</th><th>Total</th><th>Lucro</th></tr></thead>
               <tbody>
-                ${ultimasVendas.map(v => `
+                ${ultimasVendas.map(v => {
+                  const r = getReceita(v.receitaId);
+                  return `
                   <tr>
                     <td>${fmtDate(v.data)}</td>
+                    <td>${r ? r.nome : '—'}</td>
                     <td>${v.cliente || '—'}</td>
                     <td>${v.qtd}</td>
                     <td>${fmtBRL(v.totalRecebido)}</td>
                     <td class="text-soft">${fmtBRL(v.lucro)}</td>
                   </tr>
-                `).join('')}
+                `;}).join('')}
               </tbody>
             </table>
           </div>
@@ -347,14 +384,14 @@ function renderDashboard(){
       </div>
 
       <div class="card">
-        <div class="section-title"><div class="left"><span class="dot"></span>Estoque de ingredientes</div></div>
+        <div class="section-title"><div class="left"><span class="dot"></span><span>Estoque de ingredientes</span></div></div>
         ${state.estoqueIngredientes.map(i => {
           const baixo = Number(i.qtd) < Number(i.minimo);
           return `
             <div class="flex between center" style="padding:8px 0; border-bottom:1px solid var(--line);">
               <div>
                 <div style="font-weight:500; font-size:13px;">${i.nome}</div>
-                <div class="text-faint text-sm">${fmtNum(i.qtd, i.unidade==='kg'?2:0)} ${i.unidade}</div>
+                <div class="text-faint text-sm">${fmtNum(i.qtd, 2)} ${i.unidade}</div>
               </div>
               <span class="tag ${baixo ? 'low' : 'ok'}">${baixo ? 'Repor' : 'OK'}</span>
             </div>
@@ -377,13 +414,11 @@ function renderDashboard(){
 }
 
 /* ============================================================
-   PRODUÇÃO
+   PRODUÇÃO — com múltiplas receitas
    ============================================================ */
 
 function renderProducao(){
   const container = $('#view-producao');
-  const cf = custoFornada();
-  const cp = custoPorPao();
 
   const totalProduzido = state.producao.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
   const totalVendido = state.vendas.reduce((s,v) => s + (Number(v.qtd)||0), 0);
@@ -395,16 +430,11 @@ function renderProducao(){
   container.innerHTML = `
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="label">Custo por fornada</div>
-        <div class="value">${fmtBRL(cf)}</div>
-        <div class="sub">${state.config.paesPerFornada} pães por fornada</div>
+        <div class="label">Receitas cadastradas</div>
+        <div class="value">${state.config.receitas.length}</div>
+        <div class="sub">sabores diferentes</div>
       </div>
       <div class="kpi-card accent">
-        <div class="label">Custo por pão</div>
-        <div class="value">${fmtBRL(cp)}</div>
-        <div class="sub">baseado na receita atual</div>
-      </div>
-      <div class="kpi-card">
         <div class="label">Total produzido</div>
         <div class="value">${fmtNum(totalProduzido)}</div>
         <div class="sub">desde o início</div>
@@ -414,22 +444,30 @@ function renderProducao(){
         <div class="value">${fmtNum(estoquePaes)}</div>
         <div class="sub">prontos para venda</div>
       </div>
+      <div class="kpi-card">
+        <div class="label">Gasto em produção</div>
+        <div class="value">${fmtBRL(custoTotalGasto)}</div>
+        <div class="sub">total acumulado</div>
+      </div>
     </div>
 
     <div class="two-col">
       <div class="card">
         <div class="section-title">
-          <div class="left"><span class="dot"></span>Registro de fornadas</div>
+          <div class="left"><span class="dot"></span><span>Registro de fornadas</span></div>
           <button class="btn sm" id="btnNovaFornada">+ Nova fornada</button>
         </div>
         ${producaoOrdenada.length ? `
           <div class="table-wrap">
             <table class="data">
-              <thead><tr><th>Data</th><th>Fornadas</th><th>Pães</th><th>Custo</th><th></th></tr></thead>
+              <thead><tr><th>Data</th><th>Receita</th><th>Fornadas</th><th>Pães</th><th>Custo</th><th></th></tr></thead>
               <tbody>
-                ${producaoOrdenada.map(p => `
+                ${producaoOrdenada.map(p => {
+                  const r = getReceita(p.receitaId);
+                  return `
                   <tr>
                     <td>${fmtDate(p.data)}</td>
+                    <td>${r ? r.nome : '—'}</td>
                     <td>${p.fornadas}</td>
                     <td>${p.paesProduzidos}</td>
                     <td>${fmtBRL(p.custoTotal)}</td>
@@ -438,7 +476,7 @@ function renderProducao(){
                       <button class="btn-icon danger" data-del-prod="${p.id}" title="Excluir">✕</button>
                     </td>
                   </tr>
-                `).join('')}
+                `;}).join('')}
               </tbody>
             </table>
           </div>
@@ -446,44 +484,57 @@ function renderProducao(){
       </div>
 
       <div class="card">
-        <div class="section-title"><div class="left"><span class="dot"></span>Receita base (custo)</div></div>
-        <div class="table-wrap">
-          <table class="data">
-            <thead><tr><th>Ingrediente</th><th>Qtd</th><th>Custo</th></tr></thead>
-            <tbody>
-              ${state.config.ingredientes.map((i, idx) => `
-                <tr>
-                  <td>${i.nome}</td>
-                  <td>${i.qtd} ${i.unidade}</td>
-                  <td>${fmtBRL(i.qtd * i.custoUn)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+        <div class="section-title">
+          <div class="left"><span class="dot"></span><span>Receitas</span></div>
+          <button class="btn sm" id="btnNovaReceita">+ Nova receita</button>
         </div>
-        <div class="flex between" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
-          <strong>Total da fornada</strong>
-          <strong class="text-soft">${fmtBRL(cf)}</strong>
-        </div>
-        <button class="btn outline full" id="btnEditarReceita" style="margin-top:14px;">Editar receita e custos</button>
+        ${state.config.receitas.map(r => {
+          const cf = custoFornada(r);
+          const cp = custoPorPao(r);
+          const lp = lucroPorPao(r);
+          return `
+            <div style="padding:14px 0; border-bottom:1px solid var(--line);">
+              <div class="flex between center" style="margin-bottom:6px;">
+                <strong style="font-family:'Fraunces',serif; font-size:15px;">${r.nome}</strong>
+                <div class="flex gap">
+                  <button class="btn-icon" data-edit-receita="${r.id}" title="Editar">✎</button>
+                  ${state.config.receitas.length > 1 ? `<button class="btn-icon danger" data-del-receita="${r.id}" title="Excluir">✕</button>` : ''}
+                </div>
+              </div>
+              <div class="text-faint text-sm">
+                ${r.paesPerFornada} pães/fornada · custo fornada ${fmtBRL(cf)} · custo/pão ${fmtBRL(cp)} ·
+                venda ${fmtBRL(r.precoVenda)} · lucro/pão <span style="color:var(--oliva-dark); font-weight:600;">${fmtBRL(lp)}</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
   `;
 
   $('#btnNovaFornada')?.addEventListener('click', () => openProducaoModal());
-  $('#btnEditarReceita')?.addEventListener('click', () => openReceitaModal());
+  $('#btnNovaReceita')?.addEventListener('click', () => openReceitaModal());
   $$('[data-edit-prod]').forEach(b => b.addEventListener('click', () => openProducaoModal(b.dataset.editProd)));
   $$('[data-del-prod]').forEach(b => b.addEventListener('click', () => confirmarExclusao('producao', b.dataset.delProd)));
+  $$('[data-edit-receita]').forEach(b => b.addEventListener('click', () => openReceitaModal(b.dataset.editReceita)));
+  $$('[data-del-receita]').forEach(b => b.addEventListener('click', () => excluirReceita(b.dataset.delReceita)));
 }
 
 function openProducaoModal(id=null){
   editingId = id;
   editingType = 'producao';
   const item = id ? state.producao.find(p => p.id === id) : null;
+  const receitaInicial = item ? item.receitaId : state.config.receitas[0]?.id;
 
   openModal(`
     <h3>${item ? 'Editar fornada' : 'Nova fornada'}</h3>
     <form id="formProducao">
+      <div class="field">
+        <label>Receita / sabor</label>
+        <select name="receitaId" id="selectReceitaProd" required>
+          ${state.config.receitas.map(r => `<option value="${r.id}" ${r.id===receitaInicial?'selected':''}>${r.nome}</option>`).join('')}
+        </select>
+      </div>
       <div class="field">
         <label>Data da produção</label>
         <input type="date" name="data" value="${item?.data || todayISO()}" required>
@@ -493,8 +544,8 @@ function openProducaoModal(id=null){
         <input type="number" name="fornadas" min="0.5" step="0.5" value="${item?.fornadas || 1}" required>
       </div>
       <div class="text-faint text-sm" style="margin-bottom: 14px;">
-        Custo estimado: <strong id="custoPreview">${fmtBRL(custoFornada())}</strong> ·
-        Pães estimados: <strong id="paesPreview">${state.config.paesPerFornada}</strong>
+        Custo estimado: <strong id="custoPreview">—</strong> ·
+        Pães estimados: <strong id="paesPreview">—</strong>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn outline" id="btnCancelarProd">Cancelar</button>
@@ -504,24 +555,30 @@ function openProducaoModal(id=null){
   `);
 
   const fornadasInput = $('input[name="fornadas"]');
+  const receitaSelect = $('#selectReceitaProd');
   const updatePreview = () => {
+    const receita = getReceita(receitaSelect.value);
     const f = Number(fornadasInput.value) || 0;
-    $('#custoPreview').textContent = fmtBRL(custoFornada() * f);
-    $('#paesPreview').textContent = fmtNum(state.config.paesPerFornada * f);
+    $('#custoPreview').textContent = fmtBRL(custoFornada(receita) * f);
+    $('#paesPreview').textContent = fmtNum((receita?.paesPerFornada||0) * f);
   };
   fornadasInput.addEventListener('input', updatePreview);
+  receitaSelect.addEventListener('change', updatePreview);
   updatePreview();
 
   $('#btnCancelarProd').addEventListener('click', closeModal);
   $('#formProducao').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    const receitaId = fd.get('receitaId');
+    const receita = getReceita(receitaId);
     const fornadas = Number(fd.get('fornadas'));
     const payload = {
+      receitaId: receitaId,
       data: fd.get('data'),
       fornadas: fornadas,
-      paesProduzidos: Math.round(fornadas * state.config.paesPerFornada),
-      custoTotal: Math.round(fornadas * custoFornada() * 100) / 100,
+      paesProduzidos: Math.round(fornadas * (receita?.paesPerFornada||0)),
+      custoTotal: Math.round(fornadas * custoFornada(receita) * 100) / 100,
       atualizadoEm: serverTimestamp()
     };
 
@@ -534,120 +591,170 @@ function openProducaoModal(id=null){
         payload.criadoEm = serverTimestamp();
         await addDoc(collection(db, 'producao'), payload);
         toast('Fornada registrada', 'success');
-        await descontarEstoquePorFornada(fornadas);
+        await descontarEstoquePorFornada(receita, fornadas);
       }
       closeModal();
     } catch(err){ console.error(err); toast('Erro ao salvar', 'error'); }
   });
 }
 
-async function descontarEstoquePorFornada(fornadas){
-  const novoEstoque = state.estoqueIngredientes.map(i => ({
-    ...i,
-    qtd: Math.max(0, Number(i.qtd) - (Number(i.consumoFornada)||0) * fornadas)
-  }));
+async function descontarEstoquePorFornada(receita, fornadas){
+  if (!receita) return;
+  const novoEstoque = state.estoqueIngredientes.map(item => {
+    const ingredienteReceita = receita.ingredientes.find(i => i.nome === item.nome);
+    if (!ingredienteReceita) return item;
+    return { ...item, qtd: Math.max(0, Number(item.qtd) - (Number(ingredienteReceita.qtd)||0) * fornadas) };
+  });
   state.estoqueIngredientes = novoEstoque;
   await salvarEstoqueIngredientes();
 }
 
-function openReceitaModal(){
-  openModal(`
-    <h3>Receita e custos base</h3>
-    <form id="formReceita">
-      ${state.config.ingredientes.map((ing, idx) => `
-        <div class="field-row three" style="margin-bottom:6px; align-items:end;">
-          <div class="field" style="margin-bottom:0;">
-            <label>${idx===0?'Ingrediente':''}</label>
-            <input type="text" data-ing-nome="${idx}" value="${ing.nome}">
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label>${idx===0?'Quantidade':''}</label>
-            <input type="number" step="0.01" data-ing-qtd="${idx}" value="${ing.qtd}">
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label>${idx===0?'Custo (R$)':''}</label>
-            <input type="number" step="0.01" data-ing-custo="${idx}" value="${ing.custoUn}">
-          </div>
-        </div>
-      `).join('')}
+/* ====== RECEITAS — CRUD ====== */
+function openReceitaModal(id=null){
+  const receita = id ? getReceita(id) : null;
+  const nomesEstoque = state.estoqueIngredientes.map(i => i.nome);
 
-      <div class="field" style="margin-top:14px;">
-        <label>Pães por fornada</label>
-        <input type="number" name="paesPerFornada" value="${state.config.paesPerFornada}" required>
+  const ingredientesIniciais = receita ? receita.ingredientes : [
+    { nome: nomesEstoque[0] || '', qtd: 1, unidade: state.estoqueIngredientes[0]?.unidade || 'kg' }
+  ];
+
+  const renderLinhasIngredientes = (lista) => lista.map((ing, idx) => `
+    <div class="field-row" style="grid-template-columns: 2fr 1fr 1fr auto; margin-bottom:6px; align-items:end;" data-ing-row="${idx}">
+      <div class="field" style="margin-bottom:0;">
+        ${idx===0?'<label>Ingrediente</label>':''}
+        <select data-ing-nome="${idx}">
+          ${nomesEstoque.map(n => `<option value="${n}" ${n===ing.nome?'selected':''}>${n}</option>`).join('')}
+        </select>
       </div>
-      <div class="field">
-        <label>Preço de venda unitário (R$)</label>
-        <input type="number" step="0.01" name="precoVenda" value="${state.config.precoVenda}" required>
+      <div class="field" style="margin-bottom:0;">
+        ${idx===0?'<label>Qtd</label>':''}
+        <input type="number" step="0.01" data-ing-qtd="${idx}" value="${ing.qtd}">
       </div>
-      <div class="field">
-        <label>Preço promoção "2 por" (R$)</label>
-        <input type="number" step="0.01" name="precoPromo2" value="${state.config.precoPromo2}">
+      <div class="field" style="margin-bottom:0;">
+        ${idx===0?'<label>Unidade</label>':''}
+        <input type="text" data-ing-unidade="${idx}" value="${ing.unidade}">
       </div>
+      <button type="button" class="btn-icon danger" data-remove-ing="${idx}" title="Remover" style="margin-bottom:${idx===0?'0':'0'};">✕</button>
+    </div>
+  `).join('');
+
+  openModal(`
+    <h3>${receita ? 'Editar receita' : 'Nova receita'}</h3>
+    <form id="formReceita">
       <div class="field">
-        <label>Meta de faturamento mensal (R$)</label>
-        <input type="number" step="0.01" name="metaMensal" value="${state.config.metaMensal}">
+        <label>Nome da receita</label>
+        <input type="text" name="nome" value="${receita?.nome || ''}" placeholder="Ex: Pão de Queijo com Bacon" required>
+      </div>
+
+      <div class="field">
+        <label>Ingredientes</label>
+        <div id="ingredientesWrap">${renderLinhasIngredientes(ingredientesIniciais)}</div>
+        <button type="button" class="btn outline sm" id="btnAddIngrediente" style="margin-top:6px; align-self:flex-start;">+ Adicionar ingrediente</button>
+      </div>
+
+      <div class="field-row" style="margin-top:14px;">
+        <div class="field">
+          <label>Pães por fornada</label>
+          <input type="number" name="paesPerFornada" value="${receita?.paesPerFornada || 30}" required>
+        </div>
+        <div class="field">
+          <label>Preço de venda unitário (R$)</label>
+          <input type="number" step="0.01" name="precoVenda" value="${receita?.precoVenda || ''}" required>
+        </div>
       </div>
 
       <div class="modal-actions">
         <button type="button" class="btn outline" id="btnCancelarReceita">Cancelar</button>
-        <button type="submit" class="btn">Salvar</button>
+        <button type="submit" class="btn">Salvar receita</button>
       </div>
     </form>
   `);
 
+  let ingredientesState = [...ingredientesIniciais];
+
+  function rebindRemoveButtons(){
+    $$('[data-remove-ing]').forEach(b => {
+      b.addEventListener('click', () => {
+        const idx = Number(b.dataset.removeIng);
+        ingredientesState.splice(idx, 1);
+        if (ingredientesState.length === 0) ingredientesState.push({ nome: nomesEstoque[0]||'', qtd: 1, unidade: 'kg' });
+        $('#ingredientesWrap').innerHTML = renderLinhasIngredientes(ingredientesState);
+        rebindRemoveButtons();
+      });
+    });
+  }
+  rebindRemoveButtons();
+
+  $('#btnAddIngrediente').addEventListener('click', () => {
+    syncIngredientesFromDOM();
+    ingredientesState.push({ nome: nomesEstoque[0]||'', qtd: 1, unidade: state.estoqueIngredientes[0]?.unidade||'kg' });
+    $('#ingredientesWrap').innerHTML = renderLinhasIngredientes(ingredientesState);
+    rebindRemoveButtons();
+  });
+
+  function syncIngredientesFromDOM(){
+    const rows = $$('[data-ing-row]');
+    ingredientesState = rows.map((row, idx) => ({
+      nome: $(`[data-ing-nome="${idx}"]`)?.value || '',
+      qtd: Number($(`[data-ing-qtd="${idx}"]`)?.value) || 0,
+      unidade: $(`[data-ing-unidade="${idx}"]`)?.value || ''
+    }));
+  }
+
   $('#btnCancelarReceita').addEventListener('click', closeModal);
   $('#formReceita').addEventListener('submit', async (e) => {
     e.preventDefault();
+    syncIngredientesFromDOM();
     const fd = new FormData(e.target);
 
-    const novosIngredientes = state.config.ingredientes.map((ing, idx) => ({
-      nome: $(`[data-ing-nome="${idx}"]`).value || ing.nome,
-      qtd: Number($(`[data-ing-qtd="${idx}"]`).value) || 0,
-      unidade: ing.unidade,
-      custoUn: Number($(`[data-ing-custo="${idx}"]`).value) || 0
-    }));
-
-    state.config = {
-      ...state.config,
-      ingredientes: novosIngredientes,
+    const novaReceita = {
+      id: receita ? receita.id : slugify(fd.get('nome')) + '-' + uid().slice(0,4),
+      nome: fd.get('nome'),
+      ingredientes: ingredientesState.filter(i => i.nome),
       paesPerFornada: Number(fd.get('paesPerFornada')),
-      precoVenda: Number(fd.get('precoVenda')),
-      precoPromo2: Number(fd.get('precoPromo2')),
-      metaMensal: Number(fd.get('metaMensal'))
+      precoVenda: Number(fd.get('precoVenda'))
     };
+
+    if (receita){
+      state.config.receitas = state.config.receitas.map(r => r.id === receita.id ? novaReceita : r);
+    } else {
+      state.config.receitas = [...state.config.receitas, novaReceita];
+    }
 
     await salvarConfig();
     closeModal();
   });
 }
 
-async function confirmarExclusao(colecao, id){
+async function excluirReceita(id){
+  if (state.config.receitas.length <= 1){
+    toast('Você precisa manter ao menos uma receita', 'error');
+    return;
+  }
   openModal(`
-    <h3>Confirmar exclusão</h3>
-    <p class="text-soft">Tem certeza que deseja excluir este registro? Essa ação não pode ser desfeita.</p>
+    <h3>Excluir receita</h3>
+    <p class="text-soft">Tem certeza? Vendas e produções antigas dessa receita continuam no histórico, mas ela não aparecerá mais para novos registros.</p>
     <div class="modal-actions">
-      <button class="btn outline" id="btnCancelarDel">Cancelar</button>
-      <button class="btn danger" id="btnConfirmarDel">Excluir</button>
+      <button class="btn outline" id="btnCancelarDelReceita">Cancelar</button>
+      <button class="btn danger" id="btnConfirmarDelReceita">Excluir</button>
     </div>
   `);
-  $('#btnCancelarDel').addEventListener('click', closeModal);
-  $('#btnConfirmarDel').addEventListener('click', async () => {
-    setSyncStatus('syncing');
-    try{
-      await deleteDoc(doc(db, colecao, id));
-      toast('Registro excluído', 'success');
-    } catch(e){ console.error(e); toast('Erro ao excluir', 'error'); }
+  $('#btnCancelarDelReceita').addEventListener('click', closeModal);
+  $('#btnConfirmarDelReceita').addEventListener('click', async () => {
+    state.config.receitas = state.config.receitas.filter(r => r.id !== id);
+    await salvarConfig();
     closeModal();
   });
 }
 
 /* ============================================================
-   ESTOQUE DE INGREDIENTES
+   ESTOQUE DE INGREDIENTES — com preço por unidade
    ============================================================ */
 
 function renderEstoque(){
   const container = $('#view-estoque');
   const itensBaixo = state.estoqueIngredientes.filter(i => Number(i.qtd) < Number(i.minimo));
+  const valorTotalEstoque = state.estoqueIngredientes.reduce((s,i) => s + (Number(i.qtd)||0) * (Number(i.custoUn)||0), 0);
   const comprasOrdenadas = [...state.compras].sort((a,b) => (b.data||'').localeCompare(a.data||''));
   const totalComprasMes = state.compras
     .filter(c => monthKey(c.data) === monthKey(todayISO()))
@@ -660,36 +767,42 @@ function renderEstoque(){
         <div class="value">${itensBaixo.length ? itensBaixo.length + ' baixo(s)' : 'Tudo OK'}</div>
         <div class="sub">${itensBaixo.length ? itensBaixo.map(i=>i.nome).join(', ') : 'estoque saudável'}</div>
       </div>
+      <div class="kpi-card accent">
+        <div class="label">Valor em estoque</div>
+        <div class="value">${fmtBRL(valorTotalEstoque)}</div>
+        <div class="sub">ingredientes parados</div>
+      </div>
       <div class="kpi-card">
         <div class="label">Gasto em compras (mês)</div>
         <div class="value">${fmtBRL(totalComprasMes)}</div>
         <div class="sub">${monthLabel(monthKey(todayISO()))}</div>
       </div>
-      <div class="kpi-card">
-        <div class="label">Itens cadastrados</div>
-        <div class="value">${state.estoqueIngredientes.length}</div>
-        <div class="sub">ingredientes monitorados</div>
-      </div>
     </div>
 
     <div class="card">
       <div class="section-title">
-        <div class="left"><span class="dot"></span>Ingredientes em estoque</div>
-        <button class="btn sm" id="btnAjustarEstoque">Ajustar quantidades</button>
+        <div class="left"><span class="dot"></span><span>Ingredientes em estoque</span></div>
+        <div class="flex gap">
+          <button class="btn outline sm" id="btnNovoIngrediente">+ Novo ingrediente</button>
+          <button class="btn sm" id="btnAjustarEstoque">Ajustar quantidades e preços</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="data">
-          <thead><tr><th>Ingrediente</th><th>Qtd. atual</th><th>Mínimo</th><th>Consumo/fornada</th><th>Status</th></tr></thead>
+          <thead><tr><th>Ingrediente</th><th>Qtd. atual</th><th>Mínimo</th><th>Preço/unid.</th><th>Valor total</th><th>Status</th><th></th></tr></thead>
           <tbody>
             ${state.estoqueIngredientes.map((i, idx) => {
               const baixo = Number(i.qtd) < Number(i.minimo);
+              const valorItem = (Number(i.qtd)||0) * (Number(i.custoUn)||0);
               return `
                 <tr>
                   <td>${i.nome}</td>
-                  <td>${fmtNum(i.qtd, i.unidade==='kg'?2:0)} ${i.unidade}</td>
-                  <td>${fmtNum(i.minimo, i.unidade==='kg'?2:0)} ${i.unidade}</td>
-                  <td>${fmtNum(i.consumoFornada, i.unidade==='kg'?2:0)} ${i.unidade}</td>
+                  <td>${fmtNum(i.qtd, 2)} ${i.unidade}</td>
+                  <td>${fmtNum(i.minimo, 2)} ${i.unidade}</td>
+                  <td>${fmtBRL(i.custoUn)}</td>
+                  <td>${fmtBRL(valorItem)}</td>
                   <td><span class="tag ${baixo ? 'low' : 'ok'}">${baixo ? 'Repor' : 'OK'}</span></td>
+                  <td><button class="btn-icon danger" data-del-ingrediente="${idx}" title="Remover ingrediente">✕</button></td>
                 </tr>
               `;
             }).join('')}
@@ -700,7 +813,7 @@ function renderEstoque(){
 
     <div class="card">
       <div class="section-title">
-        <div class="left"><span class="dot"></span>Histórico de compras / reposição</div>
+        <div class="left"><span class="dot"></span><span>Histórico de compras / reposição</span></div>
         <button class="btn sm" id="btnNovaCompra">+ Registrar compra</button>
       </div>
       ${comprasOrdenadas.length ? `
@@ -726,18 +839,89 @@ function renderEstoque(){
   `;
 
   $('#btnAjustarEstoque')?.addEventListener('click', () => openAjustarEstoqueModal());
+  $('#btnNovoIngrediente')?.addEventListener('click', () => openNovoIngredienteModal());
   $('#btnNovaCompra')?.addEventListener('click', () => openCompraModal());
   $$('[data-del-compra]').forEach(b => b.addEventListener('click', () => confirmarExclusao('compras', b.dataset.delCompra)));
+  $$('[data-del-ingrediente]').forEach(b => b.addEventListener('click', () => removerIngredienteEstoque(Number(b.dataset.delIngrediente))));
+}
+
+function openNovoIngredienteModal(){
+  openModal(`
+    <h3>Novo ingrediente</h3>
+    <form id="formNovoIngrediente">
+      <div class="field">
+        <label>Nome do ingrediente</label>
+        <input type="text" name="nome" placeholder="Ex: Bacon" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Unidade</label>
+          <input type="text" name="unidade" placeholder="kg, un, g..." required>
+        </div>
+        <div class="field">
+          <label>Preço por unidade (R$)</label>
+          <input type="number" step="0.01" name="custoUn" placeholder="0,00">
+        </div>
+      </div>
+      <div class="field">
+        <label>Estoque mínimo (alerta)</label>
+        <input type="number" step="0.01" name="minimo" placeholder="0">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn outline" id="btnCancelarNovoIng">Cancelar</button>
+        <button type="submit" class="btn">Adicionar</button>
+      </div>
+    </form>
+  `);
+
+  $('#btnCancelarNovoIng').addEventListener('click', closeModal);
+  $('#formNovoIngrediente').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const nome = fd.get('nome').trim();
+    if (state.estoqueIngredientes.find(i => i.nome.toLowerCase() === nome.toLowerCase())){
+      toast('Esse ingrediente já existe', 'error');
+      return;
+    }
+    state.estoqueIngredientes.push({
+      nome: nome,
+      qtd: 0,
+      unidade: fd.get('unidade') || 'un',
+      minimo: Number(fd.get('minimo')) || 0,
+      custoUn: Number(fd.get('custoUn')) || 0
+    });
+    await salvarEstoqueIngredientes();
+    toast('Ingrediente adicionado', 'success');
+    closeModal();
+  });
+}
+
+async function removerIngredienteEstoque(idx){
+  const item = state.estoqueIngredientes[idx];
+  const emUso = state.config.receitas.some(r => r.ingredientes.some(i => i.nome === item.nome));
+  if (emUso){
+    toast('Esse ingrediente está em uso em alguma receita. Remova-o da receita primeiro.', 'error');
+    return;
+  }
+  state.estoqueIngredientes = state.estoqueIngredientes.filter((_, i) => i !== idx);
+  await salvarEstoqueIngredientes();
+  toast('Ingrediente removido', 'success');
 }
 
 function openAjustarEstoqueModal(){
   openModal(`
-    <h3>Ajustar quantidades em estoque</h3>
+    <h3>Ajustar quantidades e preços</h3>
     <form id="formEstoque">
       ${state.estoqueIngredientes.map((i, idx) => `
-        <div class="field">
-          <label>${i.nome} (${i.unidade})</label>
-          <input type="number" step="0.01" data-estoque-qtd="${idx}" value="${i.qtd}">
+        <div class="field-row" style="margin-bottom:10px;">
+          <div class="field" style="margin-bottom:0;">
+            <label>${i.nome} — Qtd (${i.unidade})</label>
+            <input type="number" step="0.01" data-estoque-qtd="${idx}" value="${i.qtd}">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Preço/unid. (R$)</label>
+            <input type="number" step="0.01" data-estoque-preco="${idx}" value="${i.custoUn}">
+          </div>
         </div>
       `).join('')}
       <div class="modal-actions">
@@ -752,7 +936,8 @@ function openAjustarEstoqueModal(){
     e.preventDefault();
     state.estoqueIngredientes = state.estoqueIngredientes.map((ing, idx) => ({
       ...ing,
-      qtd: Number($(`[data-estoque-qtd="${idx}"]`).value) || 0
+      qtd: Number($(`[data-estoque-qtd="${idx}"]`).value) || 0,
+      custoUn: Number($(`[data-estoque-preco="${idx}"]`).value) || 0
     }));
     await salvarEstoqueIngredientes();
     toast('Estoque atualizado', 'success');
@@ -835,14 +1020,13 @@ function openCompraModal(){
     try{
       await addDoc(collection(db, 'compras'), payload);
 
-      // soma no estoque
       const idx = state.estoqueIngredientes.findIndex(i => i.nome === payload.ingrediente);
       if (idx >= 0){
         state.estoqueIngredientes[idx].qtd = Number(state.estoqueIngredientes[idx].qtd) + qtd;
+        state.estoqueIngredientes[idx].custoUn = precoUnit;
         await salvarEstoqueIngredientes();
       }
 
-      // registra saída de caixa automaticamente
       await addDoc(collection(db, 'caixa'), {
         data: payload.data,
         tipo: 'saida',
@@ -859,7 +1043,7 @@ function openCompraModal(){
 }
 
 /* ============================================================
-   VENDAS
+   VENDAS — com seleção de receita/sabor
    ============================================================ */
 
 function renderVendas(){
@@ -893,17 +1077,20 @@ function renderVendas(){
 
     <div class="card">
       <div class="section-title">
-        <div class="left"><span class="dot"></span>Registro de vendas</div>
+        <div class="left"><span class="dot"></span><span>Registro de vendas</span></div>
         <button class="btn sm" id="btnNovaVenda">+ Nova venda</button>
       </div>
       ${vendasOrdenadas.length ? `
         <div class="table-wrap">
           <table class="data">
-            <thead><tr><th>Data</th><th>Cliente</th><th>Qtd</th><th>Preço un.</th><th>Total</th><th>Lucro</th><th></th></tr></thead>
+            <thead><tr><th>Data</th><th>Receita</th><th>Cliente</th><th>Qtd</th><th>Preço un.</th><th>Total</th><th>Lucro</th><th></th></tr></thead>
             <tbody>
-              ${vendasOrdenadas.map(v => `
+              ${vendasOrdenadas.map(v => {
+                const r = getReceita(v.receitaId);
+                return `
                 <tr>
                   <td>${fmtDate(v.data)}</td>
+                  <td>${r ? r.nome : '—'}</td>
                   <td>${v.cliente || '—'}</td>
                   <td>${v.qtd}</td>
                   <td>${fmtBRL(v.precoUnit)}</td>
@@ -914,7 +1101,7 @@ function renderVendas(){
                     <button class="btn-icon danger" data-del-venda="${v.id}" title="Excluir">✕</button>
                   </td>
                 </tr>
-              `).join('')}
+              `;}).join('')}
             </tbody>
           </table>
         </div>
@@ -931,6 +1118,7 @@ function openVendaModal(id=null){
   editingId = id;
   editingType = 'venda';
   const item = id ? state.vendas.find(v => v.id === id) : null;
+  const receitaInicial = item ? item.receitaId : state.config.receitas[0]?.id;
 
   const totalProduzido = state.producao.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
   const totalVendido = state.vendas.reduce((s,v) => s + (Number(v.qtd)||0), 0);
@@ -938,8 +1126,14 @@ function openVendaModal(id=null){
 
   openModal(`
     <h3>${item ? 'Editar venda' : 'Nova venda'}</h3>
-    <div class="text-faint text-sm" style="margin-bottom:14px;">Estoque disponível: <strong>${fmtNum(estoquePaes)} pães</strong></div>
+    <div class="text-faint text-sm" style="margin-bottom:14px;">Estoque disponível (todas receitas): <strong>${fmtNum(estoquePaes)} pães</strong></div>
     <form id="formVenda">
+      <div class="field">
+        <label>Receita / sabor vendido</label>
+        <select name="receitaId" id="selectReceitaVenda" required>
+          ${state.config.receitas.map(r => `<option value="${r.id}" ${r.id===receitaInicial?'selected':''}>${r.nome}</option>`).join('')}
+        </select>
+      </div>
       <div class="field">
         <label>Data da venda</label>
         <input type="date" name="data" value="${item?.data || todayISO()}" required>
@@ -955,7 +1149,7 @@ function openVendaModal(id=null){
         </div>
         <div class="field">
           <label>Valor total recebido (R$)</label>
-          <input type="number" step="0.01" name="totalRecebido" value="${item?.totalRecebido || ''}" placeholder="${(state.config.precoVenda).toFixed(2)}" required>
+          <input type="number" step="0.01" name="totalRecebido" id="totalRecebidoInput" value="${item?.totalRecebido || ''}" required>
         </div>
       </div>
       <div class="text-faint text-sm" style="margin-bottom:14px;">
@@ -974,29 +1168,39 @@ function openVendaModal(id=null){
   `);
 
   const qtdInput = $('input[name="qtd"]');
-  const totalInput = $('input[name="totalRecebido"]');
+  const totalInput = $('#totalRecebidoInput');
+  const receitaSelect = $('#selectReceitaVenda');
+
   const updatePreview = () => {
+    const receita = getReceita(receitaSelect.value);
     const qtd = Number(qtdInput.value) || 0;
+    if (!totalInput.value && receita){
+      totalInput.placeholder = (qtd * receita.precoVenda).toFixed(2);
+    }
     const total = Number(totalInput.value) || 0;
     const precoUnit = qtd ? total / qtd : 0;
-    const lucro = total - (qtd * custoPorPao());
+    const lucro = total - (qtd * custoPorPao(receita));
     $('#precoUnitPreview').textContent = fmtBRL(precoUnit);
     $('#lucroPreview').textContent = fmtBRL(lucro);
   };
   qtdInput.addEventListener('input', updatePreview);
   totalInput.addEventListener('input', updatePreview);
+  receitaSelect.addEventListener('change', updatePreview);
   updatePreview();
 
   $('#btnCancelarVenda').addEventListener('click', closeModal);
   $('#formVenda').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    const receitaId = fd.get('receitaId');
+    const receita = getReceita(receitaId);
     const qtd = Number(fd.get('qtd'));
     const totalRecebido = Number(fd.get('totalRecebido'));
     const precoUnit = qtd ? totalRecebido / qtd : 0;
-    const lucro = Math.round((totalRecebido - (qtd * custoPorPao())) * 100) / 100;
+    const lucro = Math.round((totalRecebido - (qtd * custoPorPao(receita))) * 100) / 100;
 
     const payload = {
+      receitaId: receitaId,
       data: fd.get('data'),
       cliente: fd.get('cliente') || '',
       qtd: qtd,
@@ -1016,11 +1220,10 @@ function openVendaModal(id=null){
         payload.criadoEm = serverTimestamp();
         await addDoc(collection(db, 'vendas'), payload);
 
-        // registra entrada de caixa automaticamente
         await addDoc(collection(db, 'caixa'), {
           data: payload.data,
           tipo: 'entrada',
-          descricao: `Venda${payload.cliente ? ' — ' + payload.cliente : ''} (${qtd} pães)`,
+          descricao: `Venda${payload.cliente ? ' — ' + payload.cliente : ''} (${qtd}x ${receita?.nome||''})`,
           valor: totalRecebido,
           categoria: 'Vendas',
           criadoEm: serverTimestamp()
@@ -1052,7 +1255,6 @@ function renderFinanceiro(){
   const totalSaidas = state.caixa.filter(c => c.tipo === 'saida').reduce((s,c) => s + Number(c.valor||0), 0);
   const saldoFinal = totalEntradas - totalSaidas;
 
-  // resumo mensal (últimos 6 meses com dados)
   const mesesSet = new Set();
   [...state.vendas, ...state.producao].forEach(item => { const mk = monthKey(item.data); if (mk) mesesSet.add(mk); });
   const mesesOrdenados = [...mesesSet].sort().reverse().slice(0, 6);
@@ -1083,7 +1285,7 @@ function renderFinanceiro(){
     </div>
 
     <div class="card">
-      <div class="section-title"><div class="left"><span class="dot"></span>Resumo mensal</div></div>
+      <div class="section-title"><div class="left"><span class="dot"></span><span>Resumo mensal</span></div></div>
       ${resumoMensal.length ? `
         <div class="table-wrap">
           <table class="data">
@@ -1106,7 +1308,7 @@ function renderFinanceiro(){
 
     <div class="card">
       <div class="section-title">
-        <div class="left"><span class="dot"></span>Fluxo de caixa</div>
+        <div class="left"><span class="dot"></span><span>Fluxo de caixa</span></div>
         <div class="flex gap">
           <button class="btn outline sm" id="btnNovaEntrada">+ Entrada</button>
           <button class="btn outline sm" id="btnNovaSaida">+ Saída</button>
