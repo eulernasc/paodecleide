@@ -183,6 +183,21 @@ function lucroPorPao(receita){
   return receita.precoVenda - custoPorPao(receita);
 }
 
+function estoquePorReceita(){
+  const mapa = {};
+  state.config.receitas.forEach(r => { mapa[r.id] = 0; });
+  state.producao.forEach(p => {
+    if (mapa[p.receitaId] === undefined) mapa[p.receitaId] = 0;
+    mapa[p.receitaId] += Number(p.paesProduzidos) || 0;
+  });
+  state.vendas.forEach(v => {
+    if (mapa[v.receitaId] === undefined) mapa[v.receitaId] = 0;
+    mapa[v.receitaId] -= Number(v.qtd) || 0;
+  });
+  Object.keys(mapa).forEach(k => { mapa[k] = Math.max(0, mapa[k]); });
+  return mapa;
+}
+
 /* ============================================================
    FIREBASE — LISTENERS EM TEMPO REAL
    ============================================================ */
@@ -275,9 +290,13 @@ async function salvarEstoqueIngredientes(){
 }
 
 async function confirmarExclusao(colecao, id){
+  const avisoCaixa = colecao === 'producao'
+    ? '<p class="text-faint text-sm" style="margin-top:8px;">Obs: a saída de caixa lançada para essa fornada não é removida automaticamente — você pode excluí-la manualmente na aba Financeiro se quiser.</p>'
+    : '';
   openModal(`
     <h3>Confirmar exclusão</h3>
     <p class="text-soft">Tem certeza que deseja excluir este registro? Essa ação não pode ser desfeita.</p>
+    ${avisoCaixa}
     <div class="modal-actions">
       <button class="btn outline" id="btnCancelarDel">Cancelar</button>
       <button class="btn danger" id="btnConfirmarDel">Excluir</button>
@@ -314,6 +333,8 @@ function renderDashboard(){
   const totalProduzido = state.producao.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
   const totalVendido = state.vendas.reduce((s,v) => s + (Number(v.qtd)||0), 0);
   const estoquePaes = Math.max(0, totalProduzido - totalVendido);
+  const estoqueReceitas = estoquePorReceita();
+  const multiplasReceitas = state.config.receitas.length > 1;
 
   const metaPct = state.config.metaMensal > 0 ? (faturamentoMes / state.config.metaMensal) * 100 : 0;
 
@@ -335,8 +356,19 @@ function renderDashboard(){
       </div>
       <div class="kpi-card">
         <div class="label">Pães em estoque</div>
-        <div class="value">${fmtNum(estoquePaes)}</div>
-        <div class="sub">prontos para venda</div>
+        ${multiplasReceitas ? `
+          <div style="display:flex; flex-direction:column; gap:2px; margin-top:2px;">
+            ${state.config.receitas.map(r => `
+              <div class="flex between" style="font-size:13px;">
+                <span class="text-soft">${r.nome}</span>
+                <strong>${fmtNum(estoqueReceitas[r.id]||0)}</strong>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="value">${fmtNum(estoquePaes)}</div>
+          <div class="sub">prontos para venda</div>
+        `}
       </div>
       <div class="kpi-card${itensBaixo.length ? ' alert' : ''}">
         <div class="label">Ingredientes baixos</div>
@@ -423,6 +455,8 @@ function renderProducao(){
   const totalProduzido = state.producao.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
   const totalVendido = state.vendas.reduce((s,v) => s + (Number(v.qtd)||0), 0);
   const estoquePaes = Math.max(0, totalProduzido - totalVendido);
+  const estoqueReceitas = estoquePorReceita();
+  const multiplasReceitas = state.config.receitas.length > 1;
   const custoTotalGasto = state.producao.reduce((s,p) => s + (Number(p.custoTotal)||0), 0);
 
   const producaoOrdenada = [...state.producao].sort((a,b) => (b.data||'').localeCompare(a.data||''));
@@ -441,8 +475,19 @@ function renderProducao(){
       </div>
       <div class="kpi-card oliva">
         <div class="label">Em estoque agora</div>
-        <div class="value">${fmtNum(estoquePaes)}</div>
-        <div class="sub">prontos para venda</div>
+        ${multiplasReceitas ? `
+          <div style="display:flex; flex-direction:column; gap:2px; margin-top:2px;">
+            ${state.config.receitas.map(r => `
+              <div class="flex between" style="font-size:13px;">
+                <span class="text-soft">${r.nome}</span>
+                <strong>${fmtNum(estoqueReceitas[r.id]||0)}</strong>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="value">${fmtNum(estoquePaes)}</div>
+          <div class="sub">prontos para venda</div>
+        `}
       </div>
       <div class="kpi-card">
         <div class="label">Gasto em produção</div>
@@ -492,11 +537,13 @@ function renderProducao(){
           const cf = custoFornada(r);
           const cp = custoPorPao(r);
           const lp = lucroPorPao(r);
+          const estoqueR = estoqueReceitas[r.id]||0;
           return `
             <div style="padding:14px 0; border-bottom:1px solid var(--line);">
               <div class="flex between center" style="margin-bottom:6px;">
                 <strong style="font-family:'Fraunces',serif; font-size:15px;">${r.nome}</strong>
-                <div class="flex gap">
+                <div class="flex gap center">
+                  <span class="tag ${estoqueR > 0 ? 'ok' : 'neutral'}">${fmtNum(estoqueR)} em estoque</span>
                   <button class="btn-icon" data-edit-receita="${r.id}" title="Editar">✎</button>
                   ${state.config.receitas.length > 1 ? `<button class="btn-icon danger" data-del-receita="${r.id}" title="Excluir">✕</button>` : ''}
                 </div>
@@ -590,8 +637,19 @@ function openProducaoModal(id=null){
       } else {
         payload.criadoEm = serverTimestamp();
         await addDoc(collection(db, 'producao'), payload);
-        toast('Fornada registrada', 'success');
+
         await descontarEstoquePorFornada(receita, fornadas);
+
+        await addDoc(collection(db, 'caixa'), {
+          data: payload.data,
+          tipo: 'saida',
+          descricao: `Produção: ${fornadas}x fornada de ${receita?.nome || ''}`,
+          valor: payload.custoTotal,
+          categoria: 'Insumos',
+          criadoEm: serverTimestamp()
+        });
+
+        toast('Fornada registrada e saída lançada no caixa', 'success');
       }
       closeModal();
     } catch(err){ console.error(err); toast('Erro ao salvar', 'error'); }
@@ -1120,13 +1178,11 @@ function openVendaModal(id=null){
   const item = id ? state.vendas.find(v => v.id === id) : null;
   const receitaInicial = item ? item.receitaId : state.config.receitas[0]?.id;
 
-  const totalProduzido = state.producao.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
-  const totalVendido = state.vendas.reduce((s,v) => s + (Number(v.qtd)||0), 0);
-  const estoquePaes = Math.max(0, totalProduzido - totalVendido) + (item ? Number(item.qtd) : 0);
+  const estoqueReceitas = estoquePorReceita();
+  if (item) estoqueReceitas[item.receitaId] = (estoqueReceitas[item.receitaId]||0) + Number(item.qtd);
 
   openModal(`
     <h3>${item ? 'Editar venda' : 'Nova venda'}</h3>
-    <div class="text-faint text-sm" style="margin-bottom:14px;">Estoque disponível (todas receitas): <strong>${fmtNum(estoquePaes)} pães</strong></div>
     <form id="formVenda">
       <div class="field">
         <label>Receita / sabor vendido</label>
@@ -1134,6 +1190,7 @@ function openVendaModal(id=null){
           ${state.config.receitas.map(r => `<option value="${r.id}" ${r.id===receitaInicial?'selected':''}>${r.nome}</option>`).join('')}
         </select>
       </div>
+      <div class="text-faint text-sm" style="margin-bottom:14px;">Estoque disponível: <strong id="estoqueReceitaPreview">${fmtNum(estoqueReceitas[receitaInicial]||0)} pães</strong></div>
       <div class="field">
         <label>Data da venda</label>
         <input type="date" name="data" value="${item?.data || todayISO()}" required>
@@ -1173,6 +1230,7 @@ function openVendaModal(id=null){
 
   const updatePreview = () => {
     const receita = getReceita(receitaSelect.value);
+    $('#estoqueReceitaPreview').textContent = fmtNum(estoqueReceitas[receitaSelect.value]||0) + ' pães';
     const qtd = Number(qtdInput.value) || 0;
     if (!totalInput.value && receita){
       totalInput.placeholder = (qtd * receita.precoVenda).toFixed(2);
