@@ -18,10 +18,8 @@ const WHATSAPP_NUMERO = "5535997490869"; // Número da Cleide
 
 const state = {
   receitas: [],
-  producao: [],
-  vendas: [],
   carrinho: {},
-  loaded: { config: false, producao: false, vendas: false }
+  loaded: { config: false }
 };
 
 /* ====== HELPERS ====== */
@@ -54,25 +52,9 @@ $('#modalOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'modalOverlay') closeModal();
 });
 
-/* ====== ESTOQUE POR RECEITA (mesma lógica do painel) ====== */
-function estoquePorReceita(){
-  const mapa = {};
-  state.receitas.forEach(r => { mapa[r.id] = 0; });
-  state.producao.forEach(p => {
-    if (mapa[p.receitaId] === undefined) mapa[p.receitaId] = 0;
-    mapa[p.receitaId] += Number(p.paesProduzidos) || 0;
-  });
-  state.vendas.forEach(v => {
-    if (mapa[v.receitaId] === undefined) mapa[v.receitaId] = 0;
-    mapa[v.receitaId] -= Number(v.qtd) || 0;
-  });
-  Object.keys(mapa).forEach(k => { mapa[k] = Math.max(0, mapa[k]); });
-  return mapa;
-}
-
 /* ====== FIREBASE LISTENERS (somente leitura do cardápio) ====== */
 function checkInitialLoad(){
-  if (state.loaded.config && state.loaded.producao && state.loaded.vendas){
+  if (state.loaded.config){
     $('#loadingScreen').style.display = 'none';
     $('#app').style.display = 'block';
     renderCardapio();
@@ -89,22 +71,20 @@ function init(){
     checkInitialLoad();
     renderCardapio();
   });
+}
 
-  const producaoQuery = query(collection(db, 'producao'));
-  onSnapshot(producaoQuery, (snap) => {
-    state.producao = snap.docs.map(d => d.data());
-    state.loaded.producao = true;
-    checkInitialLoad();
-    renderCardapio();
-  });
+/* ====== ÍCONES DE PRODUTO ====== */
+const ICON_PAO_QUEIJO = `<svg viewBox="0 0 56 56" width="32" height="32"><circle cx="28" cy="30" r="20" fill="#D9925E"/><circle cx="28" cy="28" r="20" fill="#C9824F"/><circle cx="18" cy="22" r="2" fill="#8A5028" opacity="0.6"/><circle cx="32" cy="18" r="1.8" fill="#8A5028" opacity="0.6"/><circle cx="38" cy="28" r="2.2" fill="#8A5028" opacity="0.6"/><circle cx="22" cy="36" r="1.6" fill="#8A5028" opacity="0.6"/><circle cx="34" cy="38" r="1.8" fill="#8A5028" opacity="0.6"/></svg>`;
 
-  const vendasQuery = query(collection(db, 'vendas'));
-  onSnapshot(vendasQuery, (snap) => {
-    state.vendas = snap.docs.map(d => d.data());
-    state.loaded.vendas = true;
-    checkInitialLoad();
-    renderCardapio();
-  });
+const ICON_COXINHA = `<svg viewBox="0 0 56 56" width="32" height="32"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="none" stroke="#8A5028" stroke-width="1" opacity="0.5"/><path d="M21 24 Q28 18 35 24" stroke="#8A5028" stroke-width="1.2" fill="none" opacity="0.5"/><path d="M19 33 Q28 27 37 33" stroke="#8A5028" stroke-width="1.2" fill="none" opacity="0.5"/></svg>`;
+const ICON_GENERICO = `<svg viewBox="0 0 56 56" width="32" height="32"><circle cx="28" cy="28" r="20" fill="#D9925E"/></svg>`;
+
+function iconePorReceita(receita){
+  if (receita.foto) return `<img src="${receita.foto}" alt="${receita.nome}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+  const nome = (receita.nome || '').toLowerCase();
+  if (nome.includes('coxinha')) return ICON_COXINHA;
+  if (nome.includes('queijo') || nome.includes('pão')) return ICON_PAO_QUEIJO;
+  return ICON_GENERICO;
 }
 
 /* ====== CARDÁPIO ====== */
@@ -117,24 +97,19 @@ function renderCardapio(){
     return;
   }
 
-  const estoque = estoquePorReceita();
-
   container.innerHTML = state.receitas.map(r => {
-    const disponivel = estoque[r.id] || 0;
     const qtdCarrinho = state.carrinho[r.id] || 0;
-    const semEstoque = disponivel <= 0;
     return `
       <div class="produto-card">
-        <div class="produto-thumb">🧀</div>
+        <div class="produto-thumb">${iconePorReceita(r)}</div>
         <div class="produto-info">
           <div class="nome">${r.nome}</div>
           <div class="preco">${fmtBRL(r.precoVenda)}</div>
-          <div class="estoque-info">${semEstoque ? 'Sem estoque no momento' : disponivel + ' disponíveis'}</div>
         </div>
         <div class="qtd-control">
           <button class="qtd-btn" data-decr="${r.id}" ${qtdCarrinho<=0?'disabled':''}>−</button>
           <span class="qtd-valor">${qtdCarrinho}</span>
-          <button class="qtd-btn" data-incr="${r.id}" ${semEstoque || qtdCarrinho>=disponivel?'disabled':''}>+</button>
+          <button class="qtd-btn" data-incr="${r.id}">+</button>
         </div>
       </div>
     `;
