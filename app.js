@@ -2,8 +2,17 @@
    PÃO DE CLEIDE — Sistema de Gestão
    ============================================================ */
 
+function waitForFirebase(){
+  return new Promise((resolve) => {
+    if (window.__firebase) { resolve(window.__firebase); return; }
+    const check = setInterval(() => {
+      if (window.__firebase) { clearInterval(check); resolve(window.__firebase); }
+    }, 30);
+  });
+}
+
 const { db, collection, doc, addDoc, updateDoc, deleteDoc,
-        onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc } = window.__firebase;
+        onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc } = await waitForFirebase();
 
 /* ====== ESTADO GLOBAL ====== */
 const state = {
