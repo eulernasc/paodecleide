@@ -46,6 +46,7 @@ const state = {
   ],
   compras: [],
   vendas: [],
+  pedidos: [],
   caixa: [],
   configLoaded: false,
   estoqueLoaded: false
@@ -186,6 +187,7 @@ function renderView(viewName){
   if (viewName === 'producao') renderProducao();
   if (viewName === 'estoque') renderEstoque();
   if (viewName === 'vendas') renderVendas();
+  if (viewName === 'pedidos') renderPedidos();
   if (viewName === 'financeiro') renderFinanceiro();
 }
 
@@ -287,6 +289,12 @@ function initFirebaseListeners(){
   const vendasQuery = query(collection(db, 'vendas'), orderBy('data', 'desc'));
   onSnapshot(vendasQuery, (snap) => {
     state.vendas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderView(getCurrentView());
+  }, (err) => { console.error(err); setSyncStatus('offline'); });
+
+  const pedidosQuery = query(collection(db, 'pedidos'), orderBy('criadoEm', 'desc'));
+  onSnapshot(pedidosQuery, (snap) => {
+    state.pedidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderView(getCurrentView());
   }, (err) => { console.error(err); setSyncStatus('offline'); });
 
@@ -1353,6 +1361,125 @@ function openVendaModal(id=null){
       closeModal();
     } catch(err){ console.error(err); toast('Erro ao salvar', 'error'); }
   });
+}
+
+/* ============================================================
+   PEDIDOS — vindos da loja do cliente
+   ============================================================ */
+
+function renderPedidos(){
+  const container = $('#view-pedidos');
+
+  const pedidosOrdenados = [...state.pedidos].sort((a,b) => {
+    const da = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(0);
+    const db_ = b.criadoEm?.toDate ? b.criadoEm.toDate() : new Date(0);
+    return db_ - da;
+  });
+
+  const pendentes = pedidosOrdenados.filter(p => !p.pago);
+  const pagos = pedidosOrdenados.filter(p => p.pago);
+  const totalPendente = pendentes.reduce((s,p) => s + (Number(p.total)||0), 0);
+
+  function formatarDataPedido(criadoEm){
+    if (!criadoEm?.toDate) return '—';
+    return criadoEm.toDate().toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function renderItensPedido(itens){
+    return (itens||[]).map(i => `${i.qtd}x ${i.nome}`).join(', ');
+  }
+
+  function cardPedido(p){
+    return `
+      <div class="card" style="margin-bottom:12px;">
+        <div class="flex between" style="margin-bottom:8px;">
+          <div>
+            <strong style="font-family:'Fraunces',serif; font-size:15px;">${p.cliente || 'Cliente'}</strong>
+            <div class="text-faint text-sm">${formatarDataPedido(p.criadoEm)} · ${p.telefone || ''}</div>
+          </div>
+          <span class="tag ${p.pago ? 'ok' : 'low'}">${p.pago ? 'Pago' : 'Pendente'}</span>
+        </div>
+        <div class="text-soft text-sm" style="margin-bottom:6px;">${renderItensPedido(p.itens)}</div>
+        ${p.obs ? `<div class="text-faint text-sm" style="margin-bottom:6px;">Obs: ${p.obs}</div>` : ''}
+        <div class="flex between center" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">
+          <strong style="font-size:16px; color:var(--terracota-dark);">${fmtBRL(p.total)}</strong>
+          <div class="flex gap">
+            ${!p.pago ? `<button class="btn sm" data-confirmar-pago="${p.id}">Marcar como pago</button>` : ''}
+            <button class="btn-icon danger" data-del-pedido="${p.id}" title="Excluir">✕</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card${pendentes.length ? ' alert' : ' oliva'}">
+        <div class="label">Pedidos pendentes</div>
+        <div class="value">${pendentes.length}</div>
+        <div class="sub">${fmtBRL(totalPendente)} a receber</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Total de pedidos</div>
+        <div class="value">${state.pedidos.length}</div>
+        <div class="sub">recebidos pela loja</div>
+      </div>
+    </div>
+
+    ${pendentes.length ? `
+      <div class="section-title"><div class="left"><span class="dot"></span><span>Pendentes</span></div></div>
+      ${pendentes.map(cardPedido).join('')}
+    ` : ''}
+
+    ${pagos.length ? `
+      <div class="section-title" style="margin-top:24px;"><div class="left"><span class="dot"></span><span>Concluídos</span></div></div>
+      ${pagos.map(cardPedido).join('')}
+    ` : ''}
+
+    ${!state.pedidos.length ? `<div class="card"><div class="empty-state"><div class="ic">○</div>Nenhum pedido recebido ainda</div></div>` : ''}
+  `;
+
+  $$('[data-confirmar-pago]').forEach(b => b.addEventListener('click', () => confirmarPagamentoPedido(b.dataset.confirmarPago)));
+  $$('[data-del-pedido]').forEach(b => b.addEventListener('click', () => confirmarExclusao('pedidos', b.dataset.delPedido)));
+}
+
+async function confirmarPagamentoPedido(id){
+  const pedido = state.pedidos.find(p => p.id === id);
+  if (!pedido) return;
+
+  setSyncStatus('syncing');
+  try{
+    await updateDoc(doc(db, 'pedidos', id), { pago: true });
+
+    await addDoc(collection(db, 'caixa'), {
+      data: todayISO(),
+      tipo: 'entrada',
+      descricao: `Pedido loja — ${pedido.cliente || 'Cliente'} (${renderItensCaixa(pedido.itens)})`,
+      valor: pedido.total,
+      categoria: 'Vendas',
+      criadoEm: serverTimestamp()
+    });
+
+    for (const item of (pedido.itens || [])){
+      await addDoc(collection(db, 'vendas'), {
+        receitaId: item.receitaId,
+        data: todayISO(),
+        cliente: pedido.cliente || '',
+        qtd: item.qtd,
+        totalRecebido: item.precoUnit * item.qtd,
+        precoUnit: item.precoUnit,
+        lucro: Math.round((item.precoUnit * item.qtd - item.qtd * custoPorPao(getReceita(item.receitaId))) * 100) / 100,
+        obs: 'Pedido via loja online',
+        criadoEm: serverTimestamp()
+      });
+    }
+
+    toast('Pedido marcado como pago e lançado no caixa', 'success');
+  } catch(err){ console.error(err); toast('Erro ao confirmar pagamento', 'error'); }
+}
+
+function renderItensCaixa(itens){
+  return (itens||[]).map(i => `${i.qtd}x ${i.nome}`).join(', ');
 }
 
 /* ============================================================
