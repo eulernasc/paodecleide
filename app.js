@@ -95,6 +95,35 @@ function slugify(s){
   return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || uid();
 }
 
+function comprimirImagem(file, maxLado, qualidade){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Falha ao carregar imagem'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxLado){
+          height = Math.round(height * (maxLado / width));
+          width = maxLado;
+        } else if (height > maxLado){
+          width = Math.round(width * (maxLado / height));
+          height = maxLado;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ====== TOAST ====== */
 function toast(msg, type='default'){
   const wrap = $('#toastWrap');
@@ -721,6 +750,17 @@ function openReceitaModal(id=null){
         </div>
       </div>
 
+      <div class="field">
+        <label>Foto do produto (opcional)</label>
+        <input type="file" id="inputFotoReceita" accept="image/*">
+        <input type="hidden" name="foto" id="fotoBase64" value="${receita?.foto || ''}">
+        <div id="fotoPreviewWrap" style="margin-top:8px; ${receita?.foto ? '' : 'display:none;'}">
+          <img id="fotoPreview" src="${receita?.foto || ''}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--line-strong);">
+          <button type="button" class="btn-icon danger" id="btnRemoverFoto" title="Remover foto" style="vertical-align:middle;">✕</button>
+        </div>
+        <span class="text-faint text-sm">Sem foto, o cardápio usa um ícone genérico de pão de queijo ou coxinha.</span>
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn outline" id="btnCancelarReceita">Cancelar</button>
         <button type="submit" class="btn">Salvar receita</button>
@@ -759,6 +799,26 @@ function openReceitaModal(id=null){
     }));
   }
 
+  $('#inputFotoReceita').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try{
+      const comprimida = await comprimirImagem(file, 300, 0.7);
+      $('#fotoBase64').value = comprimida;
+      $('#fotoPreview').src = comprimida;
+      $('#fotoPreviewWrap').style.display = '';
+    } catch(err){
+      console.error(err);
+      toast('Não foi possível processar essa imagem', 'error');
+    }
+  });
+
+  $('#btnRemoverFoto')?.addEventListener('click', () => {
+    $('#fotoBase64').value = '';
+    $('#inputFotoReceita').value = '';
+    $('#fotoPreviewWrap').style.display = 'none';
+  });
+
   $('#btnCancelarReceita').addEventListener('click', closeModal);
   $('#formReceita').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -770,7 +830,8 @@ function openReceitaModal(id=null){
       nome: fd.get('nome'),
       ingredientes: ingredientesState.filter(i => i.nome),
       paesPerFornada: Number(fd.get('paesPerFornada')),
-      precoVenda: Number(fd.get('precoVenda'))
+      precoVenda: Number(fd.get('precoVenda')),
+      foto: fd.get('foto') || ''
     };
 
     if (receita){
