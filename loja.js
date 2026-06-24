@@ -15,6 +15,9 @@ const { db, collection, doc, addDoc, onSnapshot, query, orderBy, serverTimestamp
 
 /* ====== CONFIGURAÇÃO DA LOJA ====== */
 const WHATSAPP_NUMERO = "5535997490869"; // Número da Cleide
+const PIX_CHAVE = "12356473661";
+const PIX_NOME = "EULER DA CRUZ NASCIMENTO";
+const PIX_CIDADE = "RIBEIRAO VERMELHO";
 
 const state = {
   receitas: [],
@@ -29,6 +32,40 @@ const $$ = (sel, ctx=document) => [...ctx.querySelectorAll(sel)];
 function fmtBRL(n){
   n = Number(n) || 0;
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/* ====== PIX — gera código copia e cola (padrão EMV) ====== */
+function crc16(payload){
+  let result = 0xFFFF;
+  for (let i = 0; i < payload.length; i++){
+    result ^= (payload.charCodeAt(i) << 8);
+    for (let j = 0; j < 8; j++){
+      result = (result & 0x8000) ? ((result << 1) ^ 0x1021) : (result << 1);
+      result &= 0xFFFF;
+    }
+  }
+  return result.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function emvField(id, value){
+  const len = String(value.length).padStart(2, '0');
+  return `${id}${len}${value}`;
+}
+
+function gerarPayloadPix(valor){
+  const merchantAccount = emvField('00','br.gov.bcb.pix') + emvField('01', PIX_CHAVE);
+  let payload =
+    emvField('00','01') +
+    emvField('26', merchantAccount) +
+    emvField('52','0000') +
+    emvField('53','986') +
+    emvField('54', valor.toFixed(2)) +
+    emvField('58','BR') +
+    emvField('59', PIX_NOME.slice(0,25)) +
+    emvField('60', PIX_CIDADE.slice(0,15)) +
+    emvField('62', emvField('05','***'));
+  payload += '6304';
+  return payload + crc16(payload);
 }
 
 function toast(msg){
@@ -183,6 +220,20 @@ function openCheckoutModal(){
         <input type="tel" name="telefone" required placeholder="(00) 00000-0000">
       </div>
       <div class="field">
+        <label>Forma de pagamento</label>
+        <div class="pagamento-opcoes">
+          <label class="pagamento-opcao">
+            <input type="radio" name="pagamento" value="dinheiro" checked>
+            <span>Dinheiro</span>
+          </label>
+          <label class="pagamento-opcao">
+            <input type="radio" name="pagamento" value="pix">
+            <span>Pix</span>
+          </label>
+        </div>
+      </div>
+      <div id="pixArea" style="display:none;"></div>
+      <div class="field">
         <label>Observações (opcional)</label>
         <textarea name="obs" rows="2" placeholder="Endereço, horário, alguma preferência..."></textarea>
       </div>
@@ -191,6 +242,34 @@ function openCheckoutModal(){
     </form>
   `);
 
+  const pixArea = $('#pixArea');
+  const payloadPix = gerarPayloadPix(totalValor);
+
+  $$('input[name="pagamento"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (radio.value === 'pix' && radio.checked){
+        pixArea.style.display = '';
+        pixArea.innerHTML = `
+          <div class="pix-box">
+            <div class="text-sm text-soft" style="margin-bottom:8px;">Copie o código abaixo e pague no app do seu banco:</div>
+            <div class="pix-codigo" id="pixCodigo">${payloadPix}</div>
+            <button type="button" class="btn-outline" id="btnCopiarPix" style="margin-top:8px;">Copiar código Pix</button>
+          </div>
+        `;
+        $('#btnCopiarPix').addEventListener('click', () => {
+          navigator.clipboard.writeText(payloadPix).then(() => {
+            toast('Código Pix copiado!');
+          }).catch(() => {
+            toast('Não foi possível copiar automaticamente');
+          });
+        });
+      } else if (radio.value === 'dinheiro' && radio.checked){
+        pixArea.style.display = 'none';
+        pixArea.innerHTML = '';
+      }
+    });
+  });
+
   $('#btnVoltarCardapio').addEventListener('click', closeModal);
   $('#formCheckout').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -198,6 +277,7 @@ function openCheckoutModal(){
     const nome = fd.get('nome');
     const telefone = fd.get('telefone');
     const obs = fd.get('obs') || '';
+    const pagamento = fd.get('pagamento') || 'dinheiro';
 
     const itensPedido = itens.map(([id,q]) => {
       const r = state.receitas.find(x => x.id === id);
@@ -208,7 +288,7 @@ function openCheckoutModal(){
     submitBtn.disabled = true;
     submitBtn.textContent = 'Enviando...';
 
-    const mensagem = montarMensagemWhatsapp(nome, itensPedido, totalValor, obs);
+    const mensagem = montarMensagemWhatsapp(nome, itensPedido, totalValor, obs, pagamento);
     const url = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensagem)}`;
 
     const novaJanela = window.open(url, '_blank');
@@ -223,6 +303,7 @@ function openCheckoutModal(){
         cliente: nome,
         telefone: telefone,
         obs: obs,
+        pagamento: pagamento,
         itens: itensPedido,
         total: totalValor,
         status: 'novo',
@@ -239,12 +320,13 @@ function openCheckoutModal(){
   });
 }
 
-function montarMensagemWhatsapp(nome, itens, total, obs){
+function montarMensagemWhatsapp(nome, itens, total, obs, pagamento){
   let msg = `Olá! Meu nome é ${nome} e quero fazer um pedido:\n\n`;
   itens.forEach(i => {
     msg += `• ${i.qtd}x ${i.nome} — ${fmtBRL(i.precoUnit * i.qtd)}\n`;
   });
   msg += `\nTotal: ${fmtBRL(total)}`;
+  msg += `\nPagamento: ${pagamento === 'pix' ? 'Pix' : 'Dinheiro'}`;
   if (obs) msg += `\n\nObservações: ${obs}`;
   return msg;
 }
