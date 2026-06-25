@@ -38,7 +38,8 @@ button, a, .qtd-btn, .carrinho-bar, .ajuda-btn{
 }
 
 body{
-  background: var(--bg);
+  background: var(--bg) url('assets/bg-pattern.jpg') repeat;
+  background-size: 700px auto;
   color: var(--ink);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -52,19 +53,6 @@ body{
   padding: 0 20px 100px;
   position: relative;
   z-index: 1;
-}
-
-.watermark-layer{
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.watermark-icon{
-  position: absolute;
-  opacity: 0.14;
 }
 
 /* ===== HERO ===== */
@@ -570,11 +558,7 @@ body{
 
   .pix-codigo{ font-size: 10px; }
 
-  .watermark-layer{ display: none; }
-}
-
-@media (min-width: 481px) and (max-width: 900px){
-  .watermark-icon{ opacity: 0.08; }
+  body{ background-size: 420px auto; }
 }
 
 @media (max-width: 360px){
@@ -589,19 +573,6 @@ body{
 <div id="loadingScreen" class="loading-screen">
   <div class="pao-loader"><div class="pao"></div><div class="pao"></div><div class="pao"></div></div>
   <div class="text-soft text-sm">Carregando cardápio...</div>
-</div>
-
-<div class="watermark-layer">
-  <svg class="watermark-icon" style="top:4vh; left:calc(50% - 380px); width:90px; height:90px; transform:rotate(-15deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/><circle cx="18" cy="22" r="2.4" fill="#8A5028"/><circle cx="32" cy="18" r="2" fill="#8A5028"/><circle cx="38" cy="28" r="2.6" fill="#8A5028"/></svg>
-  <svg class="watermark-icon" style="top:8vh; left:calc(50% + 320px); width:80px; height:80px; transform:rotate(18deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
-  <svg class="watermark-icon" style="top:22vh; left:calc(50% - 360px); width:60px; height:60px; transform:rotate(8deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/></svg>
-  <svg class="watermark-icon" style="top:28vh; left:calc(50% + 350px); width:70px; height:70px; transform:rotate(-20deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
-  <svg class="watermark-icon" style="top:40vh; left:calc(50% - 400px); width:85px; height:85px; transform:rotate(12deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/></svg>
-  <svg class="watermark-icon" style="top:46vh; left:calc(50% + 370px); width:75px; height:75px; transform:rotate(-10deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/></svg>
-  <svg class="watermark-icon" style="top:60vh; left:calc(50% - 370px); width:65px; height:65px; transform:rotate(-8deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
-  <svg class="watermark-icon" style="top:66vh; left:calc(50% + 330px); width:90px; height:90px; transform:rotate(22deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/></svg>
-  <svg class="watermark-icon" style="top:80vh; left:calc(50% - 390px); width:70px; height:70px; transform:rotate(15deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/></svg>
-  <svg class="watermark-icon" style="top:88vh; left:calc(50% + 340px); width:80px; height:80px; transform:rotate(-16deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
 </div>
 
 <div class="app" id="app" style="display:none;">
