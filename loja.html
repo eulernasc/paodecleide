@@ -51,13 +51,20 @@ body{
   margin: 0 auto;
   padding: 0 20px 100px;
   position: relative;
+  z-index: 1;
+}
+
+.watermark-layer{
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .watermark-icon{
   position: absolute;
-  opacity: 0.12;
-  pointer-events: none;
-  z-index: 0;
+  opacity: 0.14;
 }
 
 /* ===== HERO ===== */
@@ -563,6 +570,10 @@ body{
 
   .pix-codigo{ font-size: 10px; }
 
+  .watermark-layer{ display: none; }
+}
+
+@media (min-width: 481px) and (max-width: 900px){
   .watermark-icon{ opacity: 0.08; }
 }
 
@@ -582,15 +593,20 @@ body{
 
 <div class="app" id="app" style="display:none;">
 
-  <svg class="watermark-icon" style="top:60px; left:-35px; width:130px; height:130px; transform:rotate(-15deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/><circle cx="18" cy="22" r="2.4" fill="#8A5028"/><circle cx="32" cy="18" r="2" fill="#8A5028"/><circle cx="38" cy="28" r="2.6" fill="#8A5028"/><circle cx="22" cy="36" r="1.8" fill="#8A5028"/><circle cx="34" cy="38" r="2" fill="#8A5028"/></svg>
+<div class="watermark-layer">
+  <svg class="watermark-icon" style="top:4vh; left:calc(50% - 380px); width:90px; height:90px; transform:rotate(-15deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/><circle cx="18" cy="22" r="2.4" fill="#8A5028"/><circle cx="32" cy="18" r="2" fill="#8A5028"/><circle cx="38" cy="28" r="2.6" fill="#8A5028"/></svg>
+  <svg class="watermark-icon" style="top:8vh; left:calc(50% + 320px); width:80px; height:80px; transform:rotate(18deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
+  <svg class="watermark-icon" style="top:22vh; left:calc(50% - 360px); width:60px; height:60px; transform:rotate(8deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/></svg>
+  <svg class="watermark-icon" style="top:28vh; left:calc(50% + 350px); width:70px; height:70px; transform:rotate(-20deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
+  <svg class="watermark-icon" style="top:40vh; left:calc(50% - 400px); width:85px; height:85px; transform:rotate(12deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/></svg>
+  <svg class="watermark-icon" style="top:46vh; left:calc(50% + 370px); width:75px; height:75px; transform:rotate(-10deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/></svg>
+  <svg class="watermark-icon" style="top:60vh; left:calc(50% - 370px); width:65px; height:65px; transform:rotate(-8deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
+  <svg class="watermark-icon" style="top:66vh; left:calc(50% + 330px); width:90px; height:90px; transform:rotate(22deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/></svg>
+  <svg class="watermark-icon" style="top:80vh; left:calc(50% - 390px); width:70px; height:70px; transform:rotate(15deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/></svg>
+  <svg class="watermark-icon" style="top:88vh; left:calc(50% + 340px); width:80px; height:80px; transform:rotate(-16deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/></svg>
+</div>
 
-  <svg class="watermark-icon" style="top:300px; right:-40px; width:120px; height:120px; transform:rotate(20deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/><path d="M21 24 Q28 18 35 24" stroke="#8A5028" stroke-width="1.4" fill="none"/><path d="M19 33 Q28 27 37 33" stroke="#8A5028" stroke-width="1.4" fill="none"/></svg>
-
-  <svg class="watermark-icon" style="top:620px; left:-30px; width:110px; height:110px; transform:rotate(12deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/><circle cx="18" cy="22" r="2.4" fill="#8A5028"/><circle cx="32" cy="18" r="2" fill="#8A5028"/><circle cx="38" cy="28" r="2.6" fill="#8A5028"/></svg>
-
-  <svg class="watermark-icon" style="top:880px; right:-35px; width:120px; height:120px; transform:rotate(-22deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/><path d="M21 24 Q28 18 35 24" stroke="#8A5028" stroke-width="1.4" fill="none"/></svg>
-
-  <svg class="watermark-icon" style="top:1150px; left:-25px; width:100px; height:100px; transform:rotate(8deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/><circle cx="22" cy="36" r="1.8" fill="#8A5028"/></svg>
+<div class="app" id="app" style="display:none;">
 
   <div class="hero">
     <img src="assets/logo.jpg" alt="Pão de Cleide">
