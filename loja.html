@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Pão de Cleide — Faça seu pedido</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23FAF6F0'/%3E%3Cellipse cx='32' cy='34' rx='26' ry='22' fill='%23C17B4F'/%3E%3Cellipse cx='32' cy='32' rx='26' ry='22' fill='%23D38E5C'/%3E%3Ccircle cx='20' cy='26' r='2.6' fill='%23A66338'/%3E%3Ccircle cx='36' cy='21' r='2.3' fill='%23A66338'/%3E%3Ccircle cx='45' cy='32' r='2.8' fill='%23A66338'/%3E%3Ccircle cx='24' cy='41' r='2.2' fill='%23A66338'/%3E%3Ccircle cx='40' cy='43' r='2.4' fill='%23A66338'/%3E%3Ccircle cx='30' cy='32' r='1.8' fill='%23A66338'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,16 +33,12 @@
 
 *{margin:0;padding:0;box-sizing:border-box;}
 
+button, a, .qtd-btn, .carrinho-bar, .ajuda-btn{
+  touch-action: manipulation;
+}
+
 body{
   background: var(--bg);
-  background-image:
-    radial-gradient(circle at 8% 12%, rgba(193,123,79,0.07) 0, rgba(193,123,79,0.07) 26px, transparent 27px),
-    radial-gradient(circle at 92% 28%, rgba(193,123,79,0.06) 0, rgba(193,123,79,0.06) 22px, transparent 23px),
-    radial-gradient(circle at 15% 55%, rgba(107,115,85,0.06) 0, rgba(107,115,85,0.06) 18px, transparent 19px),
-    radial-gradient(circle at 88% 68%, rgba(193,123,79,0.07) 0, rgba(193,123,79,0.07) 24px, transparent 25px),
-    radial-gradient(circle at 10% 85%, rgba(193,123,79,0.06) 0, rgba(193,123,79,0.06) 20px, transparent 21px),
-    radial-gradient(circle at 90% 92%, rgba(107,115,85,0.06) 0, rgba(107,115,85,0.06) 22px, transparent 23px);
-  background-attachment: fixed;
   color: var(--ink);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -59,7 +55,7 @@ body{
 
 .watermark-icon{
   position: absolute;
-  opacity: 0.05;
+  opacity: 0.12;
   pointer-events: none;
   z-index: 0;
 }
@@ -186,13 +182,13 @@ body{
 }
 
 .qtd-btn{
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 1px solid var(--line-strong);
   background: var(--bg-card);
   color: var(--ink);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -517,6 +513,64 @@ body{
 .text-soft{ color: var(--ink-soft); }
 .text-faint{ color: var(--ink-faint); }
 .text-sm{ font-size: 12px; }
+
+@media (max-width: 480px){
+  .app{ padding: 0 14px 90px; }
+
+  .hero{ padding: 20px 0 16px; }
+  .hero img{ width: 110px; height: 110px; }
+  .hero .name{ font-size: 23px; }
+  .hero .tagline{ font-size: 12px; padding: 0 10px; }
+
+  .section-label{ font-size: 16px; margin: 18px 0 10px; }
+
+  .produto-card{
+    padding: 12px;
+    gap: 10px;
+  }
+  .produto-thumb{ width: 48px; height: 48px; }
+  .produto-info .nome{ font-size: 14px; }
+  .produto-info .preco{ font-size: 13px; }
+
+  .qtd-control{ gap: 6px; }
+  .qtd-btn{ width: 34px; height: 34px; font-size: 17px; }
+  .qtd-valor{ min-width: 18px; }
+
+  .ajuda-card{
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 10px;
+  }
+  .ajuda-btn{ justify-content: center; }
+
+  .carrinho-bar{
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    padding: 12px 14px;
+  }
+
+  .modal{
+    padding: 18px;
+    border-radius: var(--radius);
+    max-height: 85vh;
+  }
+  .modal h3{ font-size: 16px; }
+
+  .pagamento-opcoes{ gap: 8px; }
+  .pagamento-opcao{ padding: 12px 8px; font-size: 12px; }
+
+  .pix-codigo{ font-size: 10px; }
+
+  .watermark-icon{ opacity: 0.08; }
+}
+
+@media (max-width: 360px){
+  .hero .name{ font-size: 20px; }
+  .produto-info .nome{ font-size: 13px; }
+  .qtd-control{ gap: 4px; }
+}
 </style>
 </head>
 <body>
@@ -528,10 +582,15 @@ body{
 
 <div class="app" id="app" style="display:none;">
 
-  <svg class="watermark-icon" style="top:80px; left:-30px; width:100px; height:100px; transform:rotate(-15deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="18" cy="22" r="2" fill="#8A5028"/><circle cx="32" cy="18" r="1.8" fill="#8A5028"/><circle cx="38" cy="28" r="2.2" fill="#8A5028"/></svg>
-  <svg class="watermark-icon" style="top:340px; right:-25px; width:90px; height:90px; transform:rotate(20deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#6B7355"/></svg>
-  <svg class="watermark-icon" style="top:650px; left:-20px; width:80px; height:80px; transform:rotate(10deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/></svg>
-  <svg class="watermark-icon" style="top:900px; right:-30px; width:100px; height:100px; transform:rotate(-25deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#C17B4F"/></svg>
+  <svg class="watermark-icon" style="top:60px; left:-35px; width:130px; height:130px; transform:rotate(-15deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/><circle cx="18" cy="22" r="2.4" fill="#8A5028"/><circle cx="32" cy="18" r="2" fill="#8A5028"/><circle cx="38" cy="28" r="2.6" fill="#8A5028"/><circle cx="22" cy="36" r="1.8" fill="#8A5028"/><circle cx="34" cy="38" r="2" fill="#8A5028"/></svg>
+
+  <svg class="watermark-icon" style="top:300px; right:-40px; width:120px; height:120px; transform:rotate(20deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/><path d="M21 24 Q28 18 35 24" stroke="#8A5028" stroke-width="1.4" fill="none"/><path d="M19 33 Q28 27 37 33" stroke="#8A5028" stroke-width="1.4" fill="none"/></svg>
+
+  <svg class="watermark-icon" style="top:620px; left:-30px; width:110px; height:110px; transform:rotate(12deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#A66338"/><circle cx="28" cy="28" r="20" fill="#C17B4F"/><circle cx="18" cy="22" r="2.4" fill="#8A5028"/><circle cx="32" cy="18" r="2" fill="#8A5028"/><circle cx="38" cy="28" r="2.6" fill="#8A5028"/></svg>
+
+  <svg class="watermark-icon" style="top:880px; right:-35px; width:120px; height:120px; transform:rotate(-22deg);" viewBox="0 0 56 56"><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#A66338"/><path d="M28 12 Q36 12 39 26 Q42 40 28 46 Q14 40 17 26 Q20 12 28 12 Z" fill="#D9924F"/><path d="M21 24 Q28 18 35 24" stroke="#8A5028" stroke-width="1.4" fill="none"/></svg>
+
+  <svg class="watermark-icon" style="top:1150px; left:-25px; width:100px; height:100px; transform:rotate(8deg);" viewBox="0 0 56 56"><circle cx="28" cy="30" r="20" fill="#C17B4F"/><circle cx="28" cy="28" r="20" fill="#D9925E"/><circle cx="22" cy="36" r="1.8" fill="#8A5028"/></svg>
 
   <div class="hero">
     <img src="assets/logo.jpg" alt="Pão de Cleide">
