@@ -7,12 +7,12 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23FAF6F0'/%3E%3Cellipse cx='32' cy='34' rx='26' ry='22' fill='%23C17B4F'/%3E%3Cellipse cx='32' cy='32' rx='26' ry='22' fill='%23D38E5C'/%3E%3Ccircle cx='20' cy='26' r='2.6' fill='%23A66338'/%3E%3Ccircle cx='36' cy='21' r='2.3' fill='%23A66338'/%3E%3Ccircle cx='45' cy='32' r='2.8' fill='%23A66338'/%3E%3Ccircle cx='24' cy='41' r='2.2' fill='%23A66338'/%3E%3Ccircle cx='40' cy='43' r='2.4' fill='%23A66338'/%3E%3Ccircle cx='30' cy='32' r='1.8' fill='%23A66338'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Caveat:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg: #FAF6F0;
-  --bg-card: #FFFFFF;
-  --bg-soft: #F3ECE2;
+  --bg: #F3E8D4;
+  --bg-card: #FFFDF8;
+  --bg-soft: #ECE0C9;
   --ink: #2B241D;
   --ink-soft: #6B5F52;
   --ink-faint: #A89B8C;
@@ -24,18 +24,22 @@
   --oliva-light: #E8EBE0;
   --vermelho: #B5544A;
   --vermelho-light: #F5E3E0;
-  --line: #E8DFD3;
-  --line-strong: #D8CBB8;
-  --shadow: 0 1px 3px rgba(43,36,29,0.06);
-  --radius: 14px;
-  --radius-sm: 9px;
+  --line: #DDCBA8;
+  --line-strong: #C9B384;
+  --shadow: 0 1px 3px rgba(89,58,22,0.08);
+  --shadow-card: 0 3px 12px rgba(89,58,22,0.09);
+  --radius: 10px;
+  --radius-sm: 7px;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
 
 body{
-  background: var(--bg) url('assets/bg-pattern.jpg') repeat;
-  background-size: 850px auto;
+  background-color: var(--bg);
+  background-image: url('assets/paper-texture.jpg'), url('assets/bg-pattern.jpg');
+  background-repeat: repeat, repeat;
+  background-size: 600px auto, 850px auto;
+  background-blend-mode: multiply, normal;
   color: var(--ink);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -52,7 +56,7 @@ body{
 }
 
 @media (max-width: 700px){
-  body{ background-size: 480px auto; }
+  body{ background-size: 400px auto, 480px auto; }
 }
 
 /* ===== HEADER ===== */
@@ -61,7 +65,7 @@ header.topbar{
   align-items:center;
   justify-content:space-between;
   padding-bottom: 24px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 2px solid var(--line-strong);
   margin-bottom: 28px;
   flex-wrap: wrap;
   gap: 16px;
@@ -74,12 +78,14 @@ header.topbar{
 }
 
 .brand-logo{
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  width: 54px;
+  height: 54px;
+  border-radius: 6px;
   object-fit: cover;
-  box-shadow: 0 2px 8px rgba(43,36,29,0.12);
+  border: 3px solid var(--bg-card);
+  box-shadow: 0 3px 10px rgba(89,58,22,0.18);
   flex-shrink: 0;
+  transform: rotate(-2deg);
 }
 
 .brand .name{
@@ -201,12 +207,26 @@ nav.tabs button.active{
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 18px 20px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before{
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--terracota);
+  opacity: 0.5;
 }
 
 .kpi-card.accent{ background: var(--terracota-light); border-color: transparent; }
+.kpi-card.accent::before{ background: var(--terracota-dark); opacity: 0.7; }
 .kpi-card.oliva{ background: var(--oliva-light); border-color: transparent; }
+.kpi-card.oliva::before{ background: var(--oliva-dark); opacity: 0.7; }
 .kpi-card.alert{ background: var(--vermelho-light); border-color: transparent; }
+.kpi-card.alert::before{ background: var(--vermelho); opacity: 0.7; }
 
 .kpi-card .label{
   font-size: 11px;
@@ -239,14 +259,14 @@ nav.tabs button.active{
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 22px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-card);
   margin-bottom: 20px;
 }
 
 .section-title{
   font-family:'Fraunces', serif;
   font-size: 17px;
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: 16px;
   display:flex;
   align-items:center;
