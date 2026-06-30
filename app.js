@@ -628,9 +628,13 @@ function openProducaoModal(id=null){
         <label>Quantidade de fornadas</label>
         <input type="number" name="fornadas" min="0.5" step="0.5" value="${item?.fornadas || 1}" required>
       </div>
-      <div class="text-faint text-sm" style="margin-bottom: 14px;">
-        Custo estimado: <strong id="custoPreview">—</strong> ·
+      <div class="text-faint text-sm" style="margin-bottom: 10px;">
         Pães estimados: <strong id="paesPreview">—</strong>
+      </div>
+      <div class="field">
+        <label>Custo total desta fornada (R$)</label>
+        <input type="number" step="0.01" name="custoTotal" id="custoTotalInput" value="${item?.custoTotal ?? ''}">
+        <span class="text-faint text-sm" id="custoCalculadoHint"></span>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn outline" id="btnCancelarProd">Cancelar</button>
@@ -641,15 +645,24 @@ function openProducaoModal(id=null){
 
   const fornadasInput = $('input[name="fornadas"]');
   const receitaSelect = $('#selectReceitaProd');
-  const updatePreview = () => {
+  const custoTotalInput = $('#custoTotalInput');
+  let custoEditadoManualmente = !!item; // se está editando um registro existente, não sobrescreve o que já foi salvo
+
+  const recalcularCustoSugerido = () => {
     const receita = getReceita(receitaSelect.value);
     const f = Number(fornadasInput.value) || 0;
-    $('#custoPreview').textContent = fmtBRL(custoFornada(receita) * f);
+    const calculado = custoFornada(receita) * f;
     $('#paesPreview').textContent = fmtNum((receita?.paesPerFornada||0) * f);
+    $('#custoCalculadoHint').textContent = `Calculado pelo estoque: ${fmtBRL(calculado)}`;
+    if (!custoEditadoManualmente){
+      custoTotalInput.value = calculado.toFixed(2);
+    }
   };
-  fornadasInput.addEventListener('input', updatePreview);
-  receitaSelect.addEventListener('change', updatePreview);
-  updatePreview();
+
+  fornadasInput.addEventListener('input', recalcularCustoSugerido);
+  receitaSelect.addEventListener('change', recalcularCustoSugerido);
+  custoTotalInput.addEventListener('input', () => { custoEditadoManualmente = true; });
+  recalcularCustoSugerido();
 
   $('#btnCancelarProd').addEventListener('click', closeModal);
   $('#formProducao').addEventListener('submit', async (e) => {
@@ -658,12 +671,16 @@ function openProducaoModal(id=null){
     const receitaId = fd.get('receitaId');
     const receita = getReceita(receitaId);
     const fornadas = Number(fd.get('fornadas'));
+    const custoInformado = fd.get('custoTotal');
+    const custoFinal = custoInformado !== '' && custoInformado != null
+      ? Number(custoInformado)
+      : Math.round(fornadas * custoFornada(receita) * 100) / 100;
     const payload = {
       receitaId: receitaId,
       data: fd.get('data'),
       fornadas: fornadas,
       paesProduzidos: Math.round(fornadas * (receita?.paesPerFornada||0)),
-      custoTotal: Math.round(fornadas * custoFornada(receita) * 100) / 100,
+      custoTotal: Math.round(custoFinal * 100) / 100,
       atualizadoEm: serverTimestamp()
     };
 
