@@ -12,7 +12,8 @@ function waitForFirebase(){
 }
 
 const { db, collection, doc, addDoc, updateDoc, deleteDoc,
-        onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc } = await waitForFirebase();
+        onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc,
+        auth, signInWithEmailAndPassword, onAuthStateChanged, signOut } = await waitForFirebase();
 
 /* ====== ESTADO GLOBAL ====== */
 const state = {
@@ -1641,15 +1642,76 @@ function openCaixaModal(tipo){
 }
 
 /* ============================================================
+   AUTENTICAÇÃO
+   ============================================================ */
+
+function showLoginScreen(){
+  $('#loadingScreen').style.display = 'none';
+  $('#loginScreen').style.display = 'flex';
+  $('#app').style.display = 'none';
+}
+
+function showApp(){
+  $('#loadingScreen').style.display = 'none';
+  $('#loginScreen').style.display = 'none';
+  $('#app').style.display = 'block';
+}
+
+function initLoginForm(){
+  $('#formLogin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const email = fd.get('email');
+    const senha = fd.get('senha');
+    const btnLogin = $('#btnLogin');
+    const errorBox = $('#loginError');
+
+    errorBox.style.display = 'none';
+    btnLogin.disabled = true;
+    btnLogin.textContent = 'Entrando...';
+
+    try{
+      await signInWithEmailAndPassword(auth, email, senha);
+      // onAuthStateChanged cuida do resto
+    } catch(err){
+      console.error(err);
+      let msg = 'Não foi possível entrar. Verifique e-mail e senha.';
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found'){
+        msg = 'E-mail ou senha incorretos.';
+      } else if (err.code === 'auth/too-many-requests'){
+        msg = 'Muitas tentativas. Aguarde um momento e tente de novo.';
+      }
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+      btnLogin.disabled = false;
+      btnLogin.textContent = 'Entrar';
+    }
+  });
+}
+
+/* ============================================================
    INICIALIZAÇÃO
    ============================================================ */
 
 function init(){
-  initFirebaseListeners();
-  const lastView = localStorage.getItem('pdc_lastView') || 'dashboard';
-  setTimeout(() => {
-    if ($('#view-' + lastView)) switchView(lastView);
-  }, 50);
+  initLoginForm();
+
+  $('#btnLogout')?.addEventListener('click', async () => {
+    try{ await signOut(auth); } catch(e){ console.error(e); }
+  });
+
+  onAuthStateChanged(auth, (user) => {
+    if (user){
+      showApp();
+      initFirebaseListeners();
+      const lastView = localStorage.getItem('pdc_lastView') || 'dashboard';
+      setTimeout(() => {
+        if ($('#view-' + lastView)) switchView(lastView);
+      }, 50);
+    } else {
+      showLoginScreen();
+    }
+  });
 }
 
 init();
