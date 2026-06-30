@@ -531,6 +531,69 @@ table.data tbody tr:last-child td{ border-bottom: none; }
   40% { transform: translateY(-14px); opacity: 1; }
 }
 
+/* ===== LOGIN ===== */
+.login-screen{
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  background-image: url('assets/bg-pattern.jpg');
+  background-repeat: repeat;
+  background-size: 700px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2500;
+  padding: 20px;
+}
+
+.login-box{
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 36px 32px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+
+.login-logo{
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 4px solid var(--bg-soft);
+  box-shadow: 0 4px 12px rgba(43,36,29,0.18);
+  margin-bottom: 16px;
+}
+
+.login-title{
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--terracota-dark);
+}
+
+.login-subtitle{
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  margin-bottom: 22px;
+}
+
+.login-box .field{
+  text-align: left;
+}
+
+.login-error{
+  background: var(--vermelho-light);
+  color: var(--vermelho);
+  font-size: 12.5px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 14px;
+  text-align: left;
+}
+
 /* ===== UTIL ===== */
 .text-soft{ color: var(--ink-soft); }
 .text-faint{ color: var(--ink-faint); }
@@ -578,6 +641,26 @@ table.data tbody tr:last-child td{ border-bottom: none; }
   <div class="text-soft text-sm">Carregando Pão de Cleide...</div>
 </div>
 
+<div id="loginScreen" class="login-screen" style="display:none;">
+  <div class="login-box">
+    <img src="assets/logo.jpg" alt="Pão de Cleide" class="login-logo">
+    <div class="login-title">Pão de Cleide</div>
+    <div class="login-subtitle">Painel de gestão — acesso restrito</div>
+    <form id="formLogin">
+      <div class="field">
+        <label>E-mail</label>
+        <input type="email" name="email" required placeholder="seu@email.com" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" name="senha" required placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div id="loginError" class="login-error" style="display:none;"></div>
+      <button type="submit" class="btn full" id="btnLogin">Entrar</button>
+    </form>
+  </div>
+</div>
+
 <div class="app" id="app" style="display:none;">
 
   <header class="topbar">
@@ -605,6 +688,7 @@ table.data tbody tr:last-child td{ border-bottom: none; }
     <div class="sync-indicator">
       <span class="sync-dot" id="syncDot"></span>
       <span id="syncLabel">Sincronizado</span>
+      <button class="btn-icon" id="btnLogout" title="Sair" style="margin-left:8px;">⏻</button>
     </div>
   </header>
 
@@ -641,6 +725,9 @@ import {
   getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD1QYBgE4NBc5OCQbas-hqKt9aAoJjNVXc",
@@ -653,8 +740,12 @@ const firebaseConfig = {
 
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
+const auth = getAuth(fbApp);
 
-window.__firebase = { db, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc };
+window.__firebase = {
+  db, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc,
+  auth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+};
 </script>
 
 <script type="module" src="app.js"></script>
