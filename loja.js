@@ -136,26 +136,135 @@ function renderCardapio(){
 
   container.innerHTML = state.receitas.map(r => {
     const qtdCarrinho = state.carrinho[r.id] || 0;
+    const fotos = Array.isArray(r.fotos) ? r.fotos : (r.foto ? [r.foto] : []);
+    const thumbSrc = fotos.length ? fotos[0] : null;
+
+    const thumbHtml = thumbSrc
+      ? `<img src="${thumbSrc}" alt="${r.nome}" class="produto-thumb-img">`
+      : `<div class="produto-thumb-icon">${iconePorReceita(r)}</div>`;
+
     return `
-      <div class="produto-card">
-        <div class="produto-thumb">${iconePorReceita(r)}</div>
+      <div class="produto-card" data-open-produto="${r.id}" role="button" tabindex="0">
+        <div class="produto-thumb-wrap">
+          ${thumbHtml}
+        </div>
         <div class="produto-info">
           <div class="nome">${r.nome}</div>
           <div class="preco">${fmtBRL(r.precoVenda)}</div>
         </div>
-        <div class="qtd-control">
-          <button class="qtd-btn" data-decr="${r.id}" ${qtdCarrinho<=0?'disabled':''}>−</button>
-          <span class="qtd-valor">${qtdCarrinho}</span>
-          <button class="qtd-btn" data-incr="${r.id}">+</button>
-        </div>
+        ${qtdCarrinho > 0 ? `<div class="produto-badge">${qtdCarrinho}</div>` : ''}
       </div>
     `;
   }).join('');
 
-  $$('[data-incr]').forEach(b => b.addEventListener('click', () => alterarQtd(b.dataset.incr, 1)));
-  $$('[data-decr]').forEach(b => b.addEventListener('click', () => alterarQtd(b.dataset.decr, -1)));
+  $$('[data-open-produto]').forEach(card => {
+    card.addEventListener('click', () => openProdutoModal(card.dataset.openProduto));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') openProdutoModal(card.dataset.openProduto);
+    });
+  });
 
   updateCarrinhoBar();
+}
+
+function openProdutoModal(receitaId){
+  const r = state.receitas.find(x => x.id === receitaId);
+  if (!r) return;
+
+  const fotos = Array.isArray(r.fotos) ? r.fotos : (r.foto ? [r.foto] : []);
+  const qtdAtual = state.carrinho[receitaId] || 0;
+
+  openModal(`
+    <div class="produto-modal">
+      ${fotos.length ? `
+        <div class="foto-galeria">
+          <div class="foto-galeria-track" id="galeriaTrack">
+            ${fotos.map((f, i) => `<img src="${f}" alt="${r.nome}" class="foto-galeria-img" data-idx="${i}">`).join('')}
+          </div>
+          ${fotos.length > 1 ? `
+            <div class="foto-dots" id="fotoDots">
+              ${fotos.map((_, i) => `<span class="foto-dot ${i===0?'active':''}" data-dot="${i}"></span>`).join('')}
+            </div>
+          ` : ''}
+        </div>
+      ` : `
+        <div class="foto-placeholder">${iconePorReceita(r)}</div>
+      `}
+
+      <div class="produto-modal-body">
+        <button class="produto-modal-close" id="btnFecharProduto">✕</button>
+        <div class="produto-modal-nome">${r.nome}</div>
+        <div class="produto-modal-preco">${fmtBRL(r.precoVenda)} <span class="produto-modal-un">por unidade</span></div>
+
+        <div class="produto-modal-qtd">
+          <button class="qtd-btn" id="modalDecr" ${qtdAtual<=0?'disabled':''}>−</button>
+          <span class="qtd-valor" id="modalQtd">${qtdAtual}</span>
+          <button class="qtd-btn" id="modalIncr">+</button>
+        </div>
+
+        <button class="btn" id="btnAdicionarModal">
+          ${qtdAtual > 0 ? `Atualizar · ${fmtBRL(qtdAtual * r.precoVenda)}` : 'Adicionar ao pedido'}
+        </button>
+      </div>
+    </div>
+  `);
+
+  let qtd = qtdAtual;
+
+  const updateModal = () => {
+    $('#modalQtd').textContent = qtd;
+    $('#modalDecr').disabled = qtd <= 0;
+    $('#btnAdicionarModal').textContent = qtd > 0
+      ? `Atualizar · ${fmtBRL(qtd * r.precoVenda)}`
+      : 'Adicionar ao pedido';
+    const valEl = $('#modalQtd');
+    valEl.classList.add('bump');
+    setTimeout(() => valEl.classList.remove('bump'), 350);
+  };
+
+  $('#modalIncr').addEventListener('click', () => { qtd++; updateModal(); });
+  $('#modalDecr').addEventListener('click', () => { if (qtd > 0) { qtd--; updateModal(); }});
+
+  $('#btnAdicionarModal').addEventListener('click', () => {
+    if (qtd > 0){
+      state.carrinho[receitaId] = qtd;
+    } else {
+      delete state.carrinho[receitaId];
+    }
+    closeModal();
+    renderCardapio();
+  });
+
+  $('#btnFecharProduto').addEventListener('click', closeModal);
+
+  // Galeria — swipe e dots
+  if (fotos.length > 1){
+    const track = $('#galeriaTrack');
+    let current = 0;
+
+    const goTo = (idx) => {
+      current = Math.max(0, Math.min(fotos.length - 1, idx));
+      track.scrollTo({ left: current * track.offsetWidth, behavior: 'smooth' });
+      $$('.foto-dot').forEach((d, i) => d.classList.toggle('active', i === current));
+    };
+
+    $$('[data-dot]').forEach(d => d.addEventListener('click', () => goTo(Number(d.dataset.dot))));
+
+    let touchStartX = 0;
+    track.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, {passive:true});
+    track.addEventListener('touchend', e => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 40) goTo(diff > 0 ? current + 1 : current - 1);
+    });
+
+    track.addEventListener('scroll', () => {
+      const idx = Math.round(track.scrollLeft / track.offsetWidth);
+      if (idx !== current){
+        current = idx;
+        $$('.foto-dot').forEach((d, i) => d.classList.toggle('active', i === current));
+      }
+    });
+  }
 }
 
 function alterarQtd(receitaId, delta){
