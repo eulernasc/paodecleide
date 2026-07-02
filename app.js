@@ -825,9 +825,15 @@ function openReceitaModal(id=null){
 
       <div class="field">
         <label>Fotos do produto (até 5)</label>
-        <input type="file" id="inputFotoReceita" accept="image/*" multiple>
-        <div id="fotosGaleriaWrap" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;"></div>
-        <span class="text-faint text-sm">Sem foto, o cardápio usa um ícone genérico. A primeira foto é a capa.</span>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input type="file" id="inputFotoReceita" accept="image/*" multiple style="flex:1;">
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <input type="text" id="inputFotoUrl" placeholder="Ou cole o caminho do GitHub: assets/coxinha1.jpg" style="flex:1; font-size:12px; padding:7px 10px; border:1px solid var(--line-strong); border-radius:var(--radius-sm); background:var(--bg-card); color:var(--ink);">
+          <button type="button" class="btn outline" id="btnAddFotoUrl" style="white-space:nowrap; padding:7px 12px; font-size:12px;">Adicionar</button>
+        </div>
+        <div id="fotosGaleriaWrap" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;"></div>
+        <span class="text-faint text-sm">Upload direto comprime a foto. Para qualidade 100%, suba no GitHub (pasta <code>assets/</code>) e cole o caminho acima.</span>
       </div>
 
       <div class="modal-actions">
@@ -906,6 +912,21 @@ function openReceitaModal(id=null){
     }
     renderFotosPreview();
     e.target.value = '';
+  });
+
+  $('#btnAddFotoUrl').addEventListener('click', () => {
+    const input = $('#inputFotoUrl');
+    const url = (input.value || '').trim();
+    if (!url){ toast('Cole o caminho da foto antes de adicionar', 'error'); return; }
+    if (fotosState.length >= 5){ toast('Máximo de 5 fotos por produto', 'error'); return; }
+    fotosState.push(url);
+    renderFotosPreview();
+    input.value = '';
+  });
+
+  // Permite adicionar com Enter no campo de URL
+  $('#inputFotoUrl').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){ e.preventDefault(); $('#btnAddFotoUrl').click(); }
   });
 
   $('#btnCancelarReceita').addEventListener('click', closeModal);
