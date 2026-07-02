@@ -777,14 +777,10 @@ function openReceitaModal(id=null){
       </div>
 
       <div class="field">
-        <label>Foto do produto (opcional)</label>
-        <input type="file" id="inputFotoReceita" accept="image/*">
-        <input type="hidden" name="foto" id="fotoBase64" value="${receita?.foto || ''}">
-        <div id="fotoPreviewWrap" style="margin-top:8px; ${receita?.foto ? '' : 'display:none;'}">
-          <img id="fotoPreview" src="${receita?.foto || ''}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--line-strong);">
-          <button type="button" class="btn-icon danger" id="btnRemoverFoto" title="Remover foto" style="vertical-align:middle;">✕</button>
-        </div>
-        <span class="text-faint text-sm">Sem foto, o cardápio usa um ícone genérico de pão de queijo ou coxinha.</span>
+        <label>Fotos do produto (até 5)</label>
+        <input type="file" id="inputFotoReceita" accept="image/*" multiple>
+        <div id="fotosGaleriaWrap" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;"></div>
+        <span class="text-faint text-sm">Sem foto, o cardápio usa um ícone genérico. A primeira foto é a capa.</span>
       </div>
 
       <div class="modal-actions">
@@ -793,6 +789,30 @@ function openReceitaModal(id=null){
       </div>
     </form>
   `);
+
+  // Inicializa array de fotos com as já existentes
+  let fotosState = Array.isArray(receita?.fotos)
+    ? [...receita.fotos]
+    : (receita?.foto ? [receita.foto] : []);
+
+  function renderFotosPreview(){
+    const wrap = $('#fotosGaleriaWrap');
+    wrap.innerHTML = fotosState.map((f, i) => `
+      <div style="position:relative; display:inline-block;">
+        <img src="${f}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;border:2px solid ${i===0?'var(--terracota)':'var(--line-strong)'};">
+        ${i===0?`<span style="position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);font-size:9px;background:var(--terracota);color:white;border-radius:4px;padding:1px 4px;">CAPA</span>`:''}
+        <button type="button" data-remove-foto="${i}" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--vermelho);color:white;border:none;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+    `).join('');
+    $$('[data-remove-foto]').forEach(b => {
+      b.addEventListener('click', () => {
+        fotosState.splice(Number(b.dataset.removeFoto), 1);
+        renderFotosPreview();
+      });
+    });
+  }
+
+  renderFotosPreview();
 
   let ingredientesState = [...ingredientesIniciais];
 
@@ -826,23 +846,19 @@ function openReceitaModal(id=null){
   }
 
   $('#inputFotoReceita').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try{
-      const comprimida = await comprimirImagem(file, 300, 0.7);
-      $('#fotoBase64').value = comprimida;
-      $('#fotoPreview').src = comprimida;
-      $('#fotoPreviewWrap').style.display = '';
-    } catch(err){
-      console.error(err);
-      toast('Não foi possível processar essa imagem', 'error');
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    const restantes = 5 - fotosState.length;
+    if (restantes <= 0){ toast('Máximo de 5 fotos por produto', 'error'); return; }
+    const paraProcessar = files.slice(0, restantes);
+    for (const file of paraProcessar){
+      try{
+        const comprimida = await comprimirImagem(file, 400, 0.75);
+        fotosState.push(comprimida);
+      } catch(err){ console.error(err); }
     }
-  });
-
-  $('#btnRemoverFoto')?.addEventListener('click', () => {
-    $('#fotoBase64').value = '';
-    $('#inputFotoReceita').value = '';
-    $('#fotoPreviewWrap').style.display = 'none';
+    renderFotosPreview();
+    e.target.value = '';
   });
 
   $('#btnCancelarReceita').addEventListener('click', closeModal);
@@ -857,7 +873,8 @@ function openReceitaModal(id=null){
       ingredientes: ingredientesState.filter(i => i.nome),
       paesPerFornada: Number(fd.get('paesPerFornada')),
       precoVenda: Number(fd.get('precoVenda')),
-      foto: fd.get('foto') || ''
+      fotos: fotosState,
+      foto: fotosState[0] || '' // compatibilidade com campo antigo
     };
 
     if (receita){
