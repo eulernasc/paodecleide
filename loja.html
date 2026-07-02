@@ -288,8 +288,8 @@ body{
 
 /* ===== MODAL DE PRODUTO (estilo iFood) ===== */
 .produto-modal{
-  padding: 0;
-  margin: -26px;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: 6px;
 }
@@ -297,7 +297,8 @@ body{
 .foto-galeria{
   position: relative;
   width: 100%;
-  height: 220px;
+  height: 300px;
+  flex-shrink: 0;
   overflow: hidden;
   background: var(--bg-soft);
 }
@@ -344,7 +345,8 @@ body{
 
 .foto-placeholder{
   width: 100%;
-  height: 180px;
+  height: 200px;
+  flex-shrink: 0;
   background: var(--terracota-light);
   display: flex;
   align-items: center;
@@ -358,25 +360,29 @@ body{
 }
 
 .produto-modal-body{
-  padding: 22px 24px 24px;
+  padding: 20px 22px 24px;
   position: relative;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .produto-modal-close{
   position: absolute;
-  top: -200px;
+  top: 12px;
   right: 12px;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.45);
+  background: rgba(0,0,0,0.5);
   color: white;
   border: none;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 10;
+  line-height: 1;
 }
 
 .produto-modal-nome{
@@ -384,14 +390,21 @@ body{
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 4px;
+  color: var(--ink);
 }
 
 .produto-modal-preco{
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+
+.produto-modal-preco strong{
   color: var(--terracota-dark);
   font-family: 'Fraunces', serif;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  margin-bottom: 22px;
 }
 
 .produto-modal-un{
@@ -616,6 +629,7 @@ body{
 .modal:has(.produto-modal){
   padding: 0;
   overflow: hidden;
+  max-width: 480px;
 }
 
 @keyframes modalPop{
