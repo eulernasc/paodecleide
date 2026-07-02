@@ -355,42 +355,82 @@ async function confirmarExclusao(colecao, id){
    DASHBOARD
    ============================================================ */
 
+/* Estado do período selecionado no dashboard */
+let dashPeriodo = 'mes'; // 'mes' | 'anterior' | 'trimestre' | 'tudo'
+
 function renderDashboard(){
   const container = $('#view-dashboard');
   const curMonth = monthKey(todayISO());
 
-  const vendasMes = state.vendas.filter(v => monthKey(v.data) === curMonth);
-  const faturamentoMes = vendasMes.reduce((s,v) => s + (Number(v.totalRecebido)||0), 0);
-  const lucroMes = vendasMes.reduce((s,v) => s + (Number(v.lucro)||0), 0);
-  const paesVendidosMes = vendasMes.reduce((s,v) => s + (Number(v.qtd)||0), 0);
+  /* Calcula o mês anterior */
+  const hoje = new Date();
+  const mesAnteriorDate = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+  const prevMonth = monthKey(mesAnteriorDate.toISOString().slice(0,10));
 
-  const producaoMes = state.producao.filter(p => monthKey(p.data) === curMonth);
-  const fornadasMes = producaoMes.reduce((s,p) => s + (Number(p.fornadas)||0), 0);
-  const paesProduzidosMes = producaoMes.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
+  /* Calcula início do trimestre (últimos 3 meses) */
+  const trimMesDate = new Date(hoje.getFullYear(), hoje.getMonth() - 2, 1);
+  const trimStart = monthKey(trimMesDate.toISOString().slice(0,10));
 
+  /* Filtra vendas e produção pelo período selecionado */
+  const filtraPeriodo = (data) => {
+    const mk = monthKey(data || '');
+    if (dashPeriodo === 'mes') return mk === curMonth;
+    if (dashPeriodo === 'anterior') return mk === prevMonth;
+    if (dashPeriodo === 'trimestre') return mk >= trimStart;
+    return true; // 'tudo'
+  };
+
+  const vendasPeriodo = state.vendas.filter(v => filtraPeriodo(v.data));
+  const faturamentoPeriodo = vendasPeriodo.reduce((s,v) => s + (Number(v.totalRecebido)||0), 0);
+  const lucroPeriodo = vendasPeriodo.reduce((s,v) => s + (Number(v.lucro)||0), 0);
+  const paesVendidosPeriodo = vendasPeriodo.reduce((s,v) => s + (Number(v.qtd)||0), 0);
+
+  const producaoPeriodo = state.producao.filter(p => filtraPeriodo(p.data));
+  const fornadasPeriodo = producaoPeriodo.reduce((s,p) => s + (Number(p.fornadas)||0), 0);
+  const paesProduzidosPeriodo = producaoPeriodo.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
+
+  /* Estoque sempre reflete o total real (não filtra por período) */
+  const estoqueReceitas = estoquePorReceita();
+  const multiplasReceitas = state.config.receitas.length > 1;
   const totalProduzido = state.producao.reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
   const totalVendido = state.vendas.reduce((s,v) => s + (Number(v.qtd)||0), 0);
   const estoquePaes = Math.max(0, totalProduzido - totalVendido);
-  const estoqueReceitas = estoquePorReceita();
-  const multiplasReceitas = state.config.receitas.length > 1;
 
+  /* Meta sempre comparada ao mês atual */
+  const vendasMes = dashPeriodo === 'mes' ? vendasPeriodo : state.vendas.filter(v => monthKey(v.data) === curMonth);
+  const faturamentoMes = vendasMes.reduce((s,v) => s + (Number(v.totalRecebido)||0), 0);
   const metaPct = state.config.metaMensal > 0 ? (faturamentoMes / state.config.metaMensal) * 100 : 0;
+  const fornadasMes = state.producao.filter(p => monthKey(p.data) === curMonth).reduce((s,p) => s + (Number(p.fornadas)||0), 0);
+  const paesProduzidosMes = state.producao.filter(p => monthKey(p.data) === curMonth).reduce((s,p) => s + (Number(p.paesProduzidos)||0), 0);
 
   const itensBaixo = state.estoqueIngredientes.filter(i => Number(i.qtd) < Number(i.minimo));
-
   const ultimasVendas = [...state.vendas].sort((a,b) => (b.data||'').localeCompare(a.data||'')).slice(0, 6);
 
+  const periodoLabel = {
+    mes: monthLabel(curMonth),
+    anterior: monthLabel(prevMonth),
+    trimestre: 'Últimos 3 meses',
+    tudo: 'Desde o início'
+  }[dashPeriodo];
+
   container.innerHTML = `
+    <div class="periodo-selector">
+      <button class="periodo-btn${dashPeriodo==='mes'?' active':''}" data-periodo="mes">Este mês</button>
+      <button class="periodo-btn${dashPeriodo==='anterior'?' active':''}" data-periodo="anterior">Mês anterior</button>
+      <button class="periodo-btn${dashPeriodo==='trimestre'?' active':''}" data-periodo="trimestre">3 meses</button>
+      <button class="periodo-btn${dashPeriodo==='tudo'?' active':''}" data-periodo="tudo">Tudo</button>
+    </div>
+
     <div class="kpi-grid">
       <div class="kpi-card accent">
-        <div class="label">Faturamento do mês</div>
-        <div class="value">${fmtBRL(faturamentoMes)}</div>
-        <div class="sub">${monthLabel(curMonth)}</div>
+        <div class="label">Faturamento</div>
+        <div class="value">${fmtBRL(faturamentoPeriodo)}</div>
+        <div class="sub">${periodoLabel}</div>
       </div>
       <div class="kpi-card oliva">
-        <div class="label">Lucro do mês</div>
-        <div class="value">${fmtBRL(lucroMes)}</div>
-        <div class="sub">${paesVendidosMes} pães vendidos</div>
+        <div class="label">Lucro</div>
+        <div class="value">${fmtBRL(lucroPeriodo)}</div>
+        <div class="sub">${paesVendidosPeriodo} pães vendidos</div>
       </div>
       <div class="kpi-card">
         <div class="label">Pães em estoque</div>
@@ -417,7 +457,7 @@ function renderDashboard(){
 
     <div class="card">
       <div class="section-title">
-        <div class="left"><span class="dot"></span><span>Meta do mês</span></div>
+        <div class="left"><span class="dot"></span><span>Meta do mês — ${monthLabel(curMonth)}</span></div>
         <span class="text-soft text-sm">${fmtBRL(faturamentoMes)} de ${fmtBRL(state.config.metaMensal)}</span>
       </div>
       <div class="progress-bar"><div class="fill" style="width:${Math.min(100,metaPct).toFixed(0)}%"></div></div>
@@ -476,6 +516,13 @@ function renderDashboard(){
       <button class="btn outline" id="btnDashVerEstoque">Ver estoque</button>
     </div>
   `;
+
+  $$('[data-periodo]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dashPeriodo = btn.dataset.periodo;
+      renderDashboard();
+    });
+  });
 
   $('#btnNovaVendaDash')?.addEventListener('click', () => openVendaModal());
   $('#btnDashNovaVenda2')?.addEventListener('click', () => openVendaModal());
