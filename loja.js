@@ -178,6 +178,7 @@ function openProdutoModal(receitaId){
     <div class="produto-modal">
       ${fotos.length ? `
         <div class="foto-galeria">
+          <button class="produto-modal-close" id="btnFecharProduto">✕</button>
           <div class="foto-galeria-track" id="galeriaTrack">
             ${fotos.map((f, i) => `<img src="${f}" alt="${r.nome}" class="foto-galeria-img" data-idx="${i}">`).join('')}
           </div>
@@ -188,13 +189,18 @@ function openProdutoModal(receitaId){
           ` : ''}
         </div>
       ` : `
-        <div class="foto-placeholder">${iconePorReceita(r)}</div>
+        <div class="foto-placeholder">
+          <button class="produto-modal-close" id="btnFecharProduto" style="position:absolute;top:10px;right:10px;">✕</button>
+          ${iconePorReceita(r)}
+        </div>
       `}
 
       <div class="produto-modal-body">
-        <button class="produto-modal-close" id="btnFecharProduto">✕</button>
         <div class="produto-modal-nome">${r.nome}</div>
-        <div class="produto-modal-preco">${fmtBRL(r.precoVenda)} <span class="produto-modal-un">por unidade</span></div>
+        <div class="produto-modal-preco">
+          <strong>${fmtBRL(r.precoVenda)}</strong>
+          <span class="produto-modal-un">por unidade</span>
+        </div>
 
         <div class="produto-modal-qtd">
           <button class="qtd-btn" id="modalDecr" ${qtdAtual<=0?'disabled':''}>−</button>
