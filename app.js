@@ -900,7 +900,7 @@ function openReceitaModal(id=null){
     const paraProcessar = files.slice(0, restantes);
     for (const file of paraProcessar){
       try{
-        const comprimida = await comprimirImagem(file, 400, 0.75);
+        const comprimida = await comprimirImagem(file, 800, 0.85);
         fotosState.push(comprimida);
       } catch(err){ console.error(err); }
     }
