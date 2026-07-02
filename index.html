@@ -190,6 +190,38 @@ nav.tabs button.active{
 .view.active{ display:block; }
 @keyframes fadeIn{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
 
+/* ===== SELETOR DE PERÍODO ===== */
+.periodo-selector{
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.periodo-btn{
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-card);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+
+.periodo-btn:hover{
+  border-color: var(--terracota);
+  color: var(--terracota-dark);
+}
+
+.periodo-btn.active{
+  background: var(--terracota-dark);
+  color: white;
+  border-color: var(--terracota-dark);
+}
+
 /* ===== CARDS / GRID ===== */
 .kpi-grid{
   display:grid;
